@@ -33,11 +33,6 @@
 
 #include "grl-magnatune.h"
 
-#define GRL_MAGNATUNE_GET_PRIVATE(object)                 \
-  (G_TYPE_INSTANCE_GET_PRIVATE((object),                  \
-                               GRL_MAGNATUNE_SOURCE_TYPE, \
-                               GrlMagnatunePrivate))
-
 /* --------- Logging  -------- */
 
 #define GRL_LOG_DOMAIN_DEFAULT magnatune_log_domain
@@ -107,10 +102,16 @@ GRL_LOG_DOMAIN_STATIC(magnatune_log_domain);
 
 /* --- URLs --- */
 
-#define URL_GET_DB    "http://he3.magnatune.com/info/sqlite_normalized.db"
-#define URL_GET_CRC   "http://magnatune.com/info/changed.txt"
+#define URL_GET_DB     "http://he3.magnatune.com/info/sqlite_normalized.db"
+#define URL_GET_CRC    "http://magnatune.com/info/changed.txt"
 
-#define URL_SONG_PLAY "http://he3.magnatune.com/all"
+#define URL_SONG_PLAY  "http://he3.magnatune.com/all"
+#define URL_SONG_COVER "http://he3.magnatune.com/music"
+
+/* --- Cover Art --- */
+
+#define URL_SONG_COVER_FORMAT URL_SONG_COVER "/%s/%s/cover_%d.jpg"
+static gint cover_art_sizes[] = { 50, 75, 100, 160, 200, 300, 600, 1400 };
 
 /* --- Other --- */
 
@@ -221,6 +222,8 @@ GRL_PLUGIN_DEFINE (GRL_MAJOR,
 
 /* ================== Magnatune GObject ================= */
 
+G_DEFINE_TYPE_WITH_PRIVATE (GrlMagnatuneSource, grl_magnatune_source, GRL_TYPE_SOURCE)
+
 static GrlMagnatuneSource *
 grl_magnatune_source_new(void)
 {
@@ -257,8 +260,6 @@ grl_magnatune_source_class_init(GrlMagnatuneSourceClass * klass)
   source_class->supported_keys = grl_magnatune_source_supported_keys;
   source_class->search = grl_magnatune_source_search;
   source_class->browse = grl_magnatune_source_browse;
-
-  g_type_class_add_private(klass, sizeof(GrlMagnatunePrivate));
 }
 
 static void
@@ -273,7 +274,7 @@ grl_magnatune_source_init(GrlMagnatuneSource *source)
 
   GRL_DEBUG("magnatune_source_init");
 
-  source->priv = GRL_MAGNATUNE_GET_PRIVATE(source);
+  source->priv = grl_magnatune_source_get_instance_private (source);
   source->priv->db = NULL;
 
   path = g_build_filename(g_get_user_data_dir(), "grilo-plugins", NULL);
@@ -317,8 +318,6 @@ grl_magnatune_source_init(GrlMagnatuneSource *source)
   g_free(path);
 }
 
-G_DEFINE_TYPE(GrlMagnatuneSource, grl_magnatune_source, GRL_TYPE_SOURCE);
-
 static void
 grl_magnatune_source_finalize(GObject *object)
 {
@@ -345,7 +344,7 @@ magnatune_get_crc_done(GObject *source_object,
   gchar *new_crc_path = NULL;
   gchar *content = NULL;
   gsize length = 0;
-  gboolean ret = FALSE; 
+  gboolean ret = FALSE;
   GError *err = NULL;
 
   GRL_DEBUG("magnatune_get_crc_done");
@@ -380,7 +379,7 @@ static void
 magnatune_get_crc_async(void)
 {
   GrlNetWc *wc = NULL;
-  
+
   GRL_DEBUG("magnatune_get_crc_async");
 
   wc = grl_net_wc_new();
@@ -449,7 +448,7 @@ magnatune_get_db_done(GObject *source_object,
     if (ret == FALSE) {
       err = g_error_new(GRL_CORE_ERROR,
                         GRL_CORE_ERROR_MEDIA_NOT_FOUND,
-                        _("Failed to save database from magnatune - '%s'"),
+                        _("Failed to save database from magnatune: “%s”"),
                         err_fn->message);
       g_error_free(err_fn);
 
@@ -505,7 +504,7 @@ magnatune_check_update_done(GObject *source_object,
   gchar *new_crc = NULL;
   gchar *old_crc = NULL;
   gsize length = 0;
-  gboolean ret = FALSE; 
+  gboolean ret = FALSE;
   GError *err = NULL;
 
   ret = grl_net_wc_request_finish(GRL_NET_WC(source_object),
@@ -592,6 +591,12 @@ magnatune_check_update(void)
   g_free(new_db_path);
 }
 
+static void
+add_cover (gpointer url_to_cover, gpointer media)
+{
+  grl_media_add_thumbnail((GrlMedia *) media, url_to_cover);
+}
+
 
 static GrlMedia *
 build_media(gint track_id,
@@ -600,7 +605,8 @@ build_media(gint track_id,
             const gchar *track_name,
             gint track_number,
             gint duration,
-            const gchar *url_to_mp3)
+            const gchar *url_to_mp3,
+            GPtrArray *url_to_covers)
 {
   GrlMedia *media = NULL;
   gchar *str_track_id = NULL;
@@ -612,6 +618,8 @@ build_media(gint track_id,
   grl_media_set_url(media, url_to_mp3);
   grl_media_set_duration(media, duration);
   grl_media_set_title(media, track_name);
+
+  g_ptr_array_foreach(url_to_covers, add_cover, media);
 
   str_track_id = g_strdup_printf("%d", track_id);
   grl_media_set_id(media, str_track_id);
@@ -625,6 +633,7 @@ build_media_track_from_stmt(sqlite3_stmt *sql_stmt)
 {
   GrlMedia *media = NULL;
 
+  gint i;
   gint track_id;
   gint duration;
   gint track_number;
@@ -634,6 +643,9 @@ build_media_track_from_stmt(sqlite3_stmt *sql_stmt)
   const gchar *raw_url;
   gchar *encoded_url;
   gchar *url_to_mp3;
+  gchar *encoded_artist;
+  gchar *encoded_album;
+  GPtrArray *url_to_covers;
 
   track_id = (guint) sqlite3_column_int(sql_stmt, MAGNATUNE_TRACK_ID);
   artist_name = (gchar *) sqlite3_column_text(sql_stmt, MAGNATUNE_ARTIST_NAME);
@@ -645,11 +657,24 @@ build_media_track_from_stmt(sqlite3_stmt *sql_stmt)
 
   encoded_url = g_uri_escape_string(raw_url, "", FALSE);
   url_to_mp3 = g_strdup_printf("%s/%s", URL_SONG_PLAY, encoded_url);
+
+  encoded_artist = g_uri_escape_string(artist_name, "", FALSE);
+  encoded_album = g_uri_escape_string(album_name, "", FALSE);
+  url_to_covers = g_ptr_array_new();
+  for (i = 0; i < G_N_ELEMENTS(cover_art_sizes); i++) {
+    gchar *cover = g_strdup_printf(URL_SONG_COVER_FORMAT, encoded_artist,
+                                   encoded_album, cover_art_sizes[i]);
+    g_ptr_array_add(url_to_covers, cover);
+  }
+
   media = build_media(track_id, artist_name, album_name, track_name,
-                      track_number, duration, url_to_mp3);
+                      track_number, duration, url_to_mp3, url_to_covers);
 
   g_free(encoded_url);
   g_free(url_to_mp3);
+  g_free(encoded_artist);
+  g_free(encoded_album);
+  g_ptr_array_free(url_to_covers, TRUE);
 
   return media;
 }
@@ -673,7 +698,7 @@ build_media_id_name_from_stmt(sqlite3_stmt *sql_stmt)
   return media;
 }
 
-static GList* 
+static GList*
 magnatune_sqlite_execute(OperationSpec *os,
                          gchar *sql,
                          MagnatuneBuildMediaFn build_media_fn,
@@ -699,7 +724,7 @@ magnatune_sqlite_execute(OperationSpec *os,
     goto end_sqlite_execute;
   }
 
-  while ((ret = sqlite3_step(sql_stmt)) == SQLITE_BUSY); 
+  while ((ret = sqlite3_step(sql_stmt)) == SQLITE_BUSY);
 
   while (ret == SQLITE_ROW) {
     media = build_media_fn(sql_stmt);

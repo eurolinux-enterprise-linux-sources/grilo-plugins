@@ -191,14 +191,149 @@ test_resolve_thumbnails_found (void)
 
   test_resolve_thumbnail_found (source, keys, options,
                                 "Astérix",
-                                "",
+                                "application/x-gamegear-rom",
                                 NULL,
                                 0,
                                 "http://thegamesdb.net/banners/boxart/original/front/11837-1.jpg");
 
+  test_resolve_thumbnail_found (source, keys, options,
+                                "Shatterhand",
+                                "application/x-nes-rom",
+                                NULL,
+                                0,
+                                "http://thegamesdb.net/banners/boxart/original/front/22619-1.jpg");
+
   g_list_free (keys);
   g_object_unref (options);
 }
+
+static void
+test_resolve_genre_found (GrlSource *source,
+                              GList *keys,
+                              GrlOperationOptions *options,
+                              const gchar *title,
+                              const gchar *mime,
+                              guint no_of_genres)
+{
+  GError *error = NULL;
+  GrlMedia *media;
+  guint expected_n_genres;
+
+  media = build_game_media (title);
+  grl_media_set_mime (media, mime);
+
+  grl_operation_options_set_resolution_flags (options, GRL_RESOLVE_FULL);
+
+  grl_source_resolve_sync (source, media, keys, options, &error);
+
+  g_assert_no_error (error);
+
+  /* We should get a genre */
+  expected_n_genres = grl_data_length (GRL_DATA (media), GRL_METADATA_KEY_GENRE);
+  g_assert_cmpuint (expected_n_genres, ==, no_of_genres);
+
+  g_object_unref (media);
+}
+
+static void
+test_resolve_genres_found (void)
+{
+  GList *keys;
+  GrlOperationOptions *options;
+  GrlRegistry *registry;
+  GrlSource *source;
+
+  registry = grl_registry_get_default ();
+  source = grl_registry_lookup_source (registry, THEGAMESDB);
+  g_assert (source);
+
+  keys = grl_metadata_key_list_new (GRL_METADATA_KEY_GENRE,
+                                    NULL);
+
+  options = grl_operation_options_new (NULL);
+  grl_operation_options_set_resolution_flags (options, GRL_RESOLVE_FULL);
+
+  test_resolve_genre_found (source, keys, options,
+                            "Astérix",
+                            "application/x-gamegear-rom",
+                            1);
+
+  test_resolve_genre_found (source, keys, options,
+                            "Shatterhand",
+                            "application/x-nes-rom",
+                            2);
+
+  g_list_free (keys);
+  g_object_unref (options);
+}
+
+static void
+test_resolve_key_found (GrlRegistry *registry,
+                        GrlSource *source,
+                        GList *keys,
+                        GrlOperationOptions *options,
+                        const gchar *key_name,
+                        const gchar *title,
+                        const gchar *mime,
+                        guint no_of_values)
+{
+  GError *error = NULL;
+  GrlMedia *media;
+  GrlKeyID key;
+  guint expected_n_values;
+
+  media = build_game_media (title);
+  grl_media_set_mime (media, mime);
+
+  grl_operation_options_set_resolution_flags (options, GRL_RESOLVE_FULL);
+
+  key = grl_registry_lookup_metadata_key (registry, key_name);
+
+  g_assert_cmpuint (key, ==, GRL_METADATA_KEY_INVALID);
+
+  grl_source_resolve_sync (source, media, keys, options, &error);
+
+  g_assert_no_error (error);
+
+  key = grl_registry_lookup_metadata_key (registry, key_name);
+
+  g_assert_cmpuint (key, !=, GRL_METADATA_KEY_INVALID);
+
+  /* We should get a value */
+  expected_n_values = grl_data_length (GRL_DATA (media), key);
+  g_assert_cmpuint (expected_n_values, ==, no_of_values);
+
+  g_object_unref (media);
+}
+
+static void
+test_resolve_keys_found (void)
+{
+  GList *keys;
+  GrlOperationOptions *options;
+  GrlRegistry *registry;
+  GrlSource *source;
+
+  registry = grl_registry_get_default ();
+  source = grl_registry_lookup_source (registry, THEGAMESDB);
+  g_assert (source);
+
+  keys = grl_metadata_key_list_new (GRL_METADATA_KEY_GENRE,
+                                    NULL);
+
+  options = grl_operation_options_new (NULL);
+  grl_operation_options_set_resolution_flags (options, GRL_RESOLVE_FULL);
+
+  test_resolve_key_found (registry, source, keys, options,
+                          "developer",
+                          "Kirby & the Amazing Mirror",
+                          "application/x-gba-rom",
+                           1);
+
+  g_list_free (keys);
+  g_object_unref (options);
+}
+
 
 int
 main(int argc, char **argv)
@@ -213,8 +348,11 @@ main(int argc, char **argv)
 
   test_setup ();
 
+  /* FIXME: Move tests to g_test_add() to init/deinit the registry for each test */
+  g_test_add_func ("/thegamesdb/resolve/keys-found", test_resolve_keys_found);
   g_test_add_func ("/thegamesdb/resolve/good-found", test_resolve_good_found);
   g_test_add_func ("/thegamesdb/resolve/thumbnails-found", test_resolve_thumbnails_found);
+  g_test_add_func ("/thegamesdb/resolve/genre-found", test_resolve_genres_found);
 
   gint result = g_test_run ();
 

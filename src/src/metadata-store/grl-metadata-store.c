@@ -33,11 +33,6 @@
 
 #include "grl-metadata-store.h"
 
-#define GRL_METADATA_STORE_GET_PRIVATE(object)			 \
-  (G_TYPE_INSTANCE_GET_PRIVATE((object),			 \
-                               GRL_METADATA_STORE_SOURCE_TYPE,	 \
-                               GrlMetadataStorePrivate))
-
 #define GRL_LOG_DOMAIN_DEFAULT metadata_store_log_domain
 GRL_LOG_DOMAIN_STATIC(metadata_store_log_domain);
 
@@ -121,6 +116,8 @@ enum {
   MEDIA_CONTAINER
 };
 
+static void grl_metadata_store_source_class_finalize (GObject *object);
+
 static GrlMetadataStoreSource *grl_metadata_store_source_new (void);
 
 static void grl_metadata_store_source_resolve (GrlSource *source,
@@ -148,6 +145,7 @@ gboolean grl_metadata_store_source_plugin_init (GrlRegistry *registry,
                                                 GrlPlugin *plugin,
                                                 GList *configs);
 
+G_DEFINE_TYPE_WITH_PRIVATE (GrlMetadataStoreSource, grl_metadata_store_source, GRL_TYPE_SOURCE)
 
 /* =================== GrlMetadataStore Plugin  =============== */
 
@@ -201,7 +199,10 @@ grl_metadata_store_source_new (void)
 static void
 grl_metadata_store_source_class_init (GrlMetadataStoreSourceClass * klass)
 {
+  GObjectClass *g_class = G_OBJECT_CLASS (klass);
   GrlSourceClass *source_class = GRL_SOURCE_CLASS (klass);
+
+  g_class->finalize = grl_metadata_store_source_class_finalize;
 
   source_class->supported_keys = grl_metadata_store_source_supported_keys;
   source_class->writable_keys = grl_metadata_store_source_writable_keys;
@@ -210,8 +211,16 @@ grl_metadata_store_source_class_init (GrlMetadataStoreSourceClass * klass)
   source_class->may_resolve = grl_metadata_store_source_may_resolve;
   source_class->resolve = grl_metadata_store_source_resolve;
   source_class->store_metadata = grl_metadata_store_source_store_metadata;
+}
 
-  g_type_class_add_private (klass, sizeof (GrlMetadataStorePrivate));
+static void
+grl_metadata_store_source_class_finalize (GObject *object)
+{
+  GrlMetadataStoreSource *source = GRL_METADATA_STORE_SOURCE (object);
+
+  sqlite3_close (source->priv->db);
+
+  G_OBJECT_CLASS (grl_metadata_store_source_parent_class)->finalize (object);
 }
 
 static void
@@ -222,7 +231,7 @@ grl_metadata_store_source_init (GrlMetadataStoreSource *source)
   gchar *db_path;
   gchar *sql_error = NULL;
 
-  source->priv = GRL_METADATA_STORE_GET_PRIVATE (source);
+  source->priv = grl_metadata_store_source_get_instance_private (source);
 
   path = g_strconcat (g_get_user_data_dir (),
                       G_DIR_SEPARATOR_S, "grilo-plugins",
@@ -266,17 +275,13 @@ grl_metadata_store_source_init (GrlMetadataStoreSource *source)
   // For backwards compatibility, add newer columns if they don't exist
   // in the old database.
   sqlite3_exec (source->priv->db, GRL_SQL_ALTER_TABLE_ADD_FAVOURITE,
-                NULL, NULL, &sql_error);
+                NULL, NULL, NULL);
 
   sqlite3_exec (source->priv->db, GRL_SQL_ALTER_TABLE_ADD_TYPE_ID,
-                NULL, NULL, &sql_error);
+                NULL, NULL, NULL);
 
   GRL_DEBUG ("  OK");
 }
-
-G_DEFINE_TYPE (GrlMetadataStoreSource,
-               grl_metadata_store_source,
-               GRL_TYPE_SOURCE);
 
 /* ======================= Utilities ==================== */
 
@@ -777,7 +782,7 @@ grl_metadata_store_source_resolve (GrlSource *source,
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_RESOLVE_FAILED,
                          _("Failed to resolve: %s"),
-                         _("\"source-id\" not available"));
+                         _("“source-id” not available"));
     rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, error);
     g_error_free (error);
     return;
@@ -822,7 +827,7 @@ grl_metadata_store_source_store_metadata (GrlSource *source,
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_STORE_METADATA_FAILED,
                          _("Failed to update metadata: %s"),
-                         _("\"source-id\" not available"));
+                         _("“source-id” not available"));
     failed_keys = g_list_copy (sms->keys);
   } else {
     /* Special case for root categories */

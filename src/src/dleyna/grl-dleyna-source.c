@@ -31,7 +31,7 @@
 #include <glib/gi18n-lib.h>
 
 #define SOURCE_ID_TEMPLATE    "grl-dleyna-%s"
-#define SOURCE_DESC_TEMPLATE  _("A source for browsing the DLNA server '%s'")
+#define SOURCE_DESC_TEMPLATE  _("A source for browsing the DLNA server “%s”")
 
 #define MEDIA_ID_PREFIX "dleyna:"
 #define MEDIA_ID_PREFIX_LENGTH 7
@@ -81,9 +81,6 @@ typedef enum {
   DLEYNA_CHANGE_TYPE_CONTAINER = 5
 } DleynaChangeType;
 
-#define GRL_DLEYNA_GET_PRIVATE(object)                                    \
-  (G_TYPE_INSTANCE_GET_PRIVATE((object), GRL_DLEYNA_SOURCE_TYPE, GrlDleynaSourcePrivate))
-
 /* ================== Prototypes ================== */
 
 static void            grl_dleyna_source_dispose              (GObject *object);
@@ -126,7 +123,7 @@ static void            grl_dleyna_source_set_server           (GrlDleynaSource *
 
 /* ================== GObject API implementation ================== */
 
-G_DEFINE_TYPE (GrlDleynaSource, grl_dleyna_source, GRL_TYPE_SOURCE)
+G_DEFINE_TYPE_WITH_PRIVATE (GrlDleynaSource, grl_dleyna_source, GRL_TYPE_SOURCE)
 
 static void
 grl_dleyna_source_class_init (GrlDleynaSourceClass * klass)
@@ -164,14 +161,12 @@ grl_dleyna_source_class_init (GrlDleynaSourceClass * klass)
                                                         G_PARAM_STATIC_NAME |
                                                         G_PARAM_STATIC_BLURB |
                                                         G_PARAM_STATIC_NICK));
-
-  g_type_class_add_private (klass, sizeof (GrlDleynaSourcePrivate));
 }
 
 static void
 grl_dleyna_source_init (GrlDleynaSource *source)
 {
-  source->priv = GRL_DLEYNA_GET_PRIVATE (source);
+  source->priv = grl_dleyna_source_get_instance_private (source);
   source->priv->uploads = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
                                                  (GDestroyNotify)grl_dleyna_source_upload_destroy);
 }
@@ -377,7 +372,7 @@ grl_dleyna_source_store_upload_update_cb (GrlDleynaSource      *self,
 
   if (!g_str_equal (upload_status, "COMPLETED")) {
     error = g_error_new (GRL_CORE_ERROR, GRL_CORE_ERROR_STORE_FAILED,
-                          _("Upload failed, '%s', transferred %lu of %lu bytes"),
+                          _("Upload failed, “%s”, transferred %lu of %lu bytes"),
                           upload_status,
                           (long unsigned int) length,
                           (long unsigned int) total);

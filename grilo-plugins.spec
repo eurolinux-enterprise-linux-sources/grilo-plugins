@@ -1,12 +1,12 @@
 # first two digits of version
 %define release_version %(echo %{version} | awk -F. '{print $1"."$2}')
 
-%global grilo_version 0.3.1
+%global grilo_version 0.3.6
 %global goa_version 3.17.91
 
 Name:		grilo-plugins
-Version:	0.3.4
-Release:	3%{?dist}
+Version:	0.3.7
+Release:	1%{?dist}
 Summary:	Plugins for the Grilo framework
 
 License:	LGPLv2+
@@ -15,8 +15,6 @@ Source0:	https://download.gnome.org/sources/grilo-plugins/%{release_version}/gri
 
 # https://bugzilla.redhat.com/show_bug.cgi?id=1477129
 Patch0:		0001-lua-factory-Downgrade-requirement-to-lua-5.1.patch
-# https://bugzilla.gnome.org/show_bug.cgi?id=788557
-Patch1:		0002-lua-factory-Fix-warning-in-Apple-trailers-source.patch
 
 BuildRequires:	avahi-gobject-devel
 BuildRequires:	grilo-devel >= %{grilo_version}
@@ -38,7 +36,7 @@ BuildRequires:	libgdata-devel
 BuildRequires:	totem-pl-parser-devel
 BuildRequires:	tracker-devel
 %if 0%{?fedora}
-BuildRequires:	gmime-devel
+BuildRequires:	gmime30-devel
 %endif
 BuildRequires:	libdmapsharing-devel
 BuildRequires:	json-glib-devel
@@ -74,12 +72,10 @@ This package contains plugins to get information from theses sources:
 - Youtube
 
 %prep
-%setup -q
-%patch0 -p1
-%patch1 -p1
+%autosetup -p1
 
 %build
-autoreconf -f
+autoreconf -fi
 
 %configure				\
 	--disable-static		\
@@ -108,7 +104,6 @@ sed -i -e 's! -shared ! -Wl,--as-needed\0!g' libtool
 
 make %{?_smp_mflags}
 
-
 %install
 %make_install
 
@@ -126,6 +121,14 @@ rm -f $RPM_BUILD_ROOT%{_bindir}/*
 %{_libdir}/grilo-%{release_version}/*.so*
 
 %changelog
+* Wed Aug 01 2018 Kalev Lember <klember@redhat.com> - 0.3.7-1
+- Update to 0.3.7
+- Resolves: #1569963
+
+* Thu May 17 2018 Kalev Lember <klember@redhat.com> - 0.3.5-1
+- Update to 0.3.5
+- Resolves: #1569963
+
 * Thu Oct 05 2017 Bastien Nocera <bnocera@redhat.com> - 0.3.4-3
 - Fix size reporting in Apple Trailers source
 - Add compatibility layer to allow building with lua 5.1

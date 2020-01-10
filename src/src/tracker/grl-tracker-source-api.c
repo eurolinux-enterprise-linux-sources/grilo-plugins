@@ -763,9 +763,9 @@ grl_tracker_source_create_constraint (int min, int max)
  * <informalexample>
  *   <programlisting>
  *     SELECT rdf:type(?song)
- *            ?song            AS id
- *            nie:title(?song) AS title
- *            nie:url(?song)   AS url
+ *            ?song            AS ?id
+ *            nie:title(?song) AS ?title
+ *            nie:url(?song)   AS ?url
  *     WHERE { ?song a nmm:MusicPiece }
  *   </programlisting>
  * </informalexample>
@@ -1085,7 +1085,7 @@ grl_tracker_source_browse_category (GrlSource *source,
 
       error = g_error_new (GRL_CORE_ERROR,
                            GRL_CORE_ERROR_BROWSE_FAILED,
-                           _("ID '%s' is not known in this source"),
+                           _("ID “%s” is not known in this source"),
                            id);
 
       bs->callback (bs->source, bs->operation_id, NULL, 0,

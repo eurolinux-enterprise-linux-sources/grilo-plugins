@@ -1,4 +1,1492 @@
-commit 9e4026978b4069468a6fe6d3e961c4d1a9c88051
+commit 41820b5c4e78f0a3a25441b1ad478a8a9a598953
+Author: Victor Toso <me@victortoso.com>
+Date:   Fri Jul 27 12:10:27 2018 +0200
+
+    Release 0.3.7
+
+ NEWS | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+commit 864b5b95cbfde4ea2f3b703f868243cc1b4225b8
+Author: Victor Toso <me@victortoso.com>
+Date:   Fri Jul 27 12:17:33 2018 +0200
+
+    build: Fix make distcheck
+    
+    As the test with the tarball fails with
+    
+     | (test_games:20431): Grilo-WARNING **: 12:13:09.460: [lua-library]
+     | ../src/lua-factory/grl-lua-library.c:588: Can't fetch element 1 (URL:
+     | http://legacy.thegamesdb.net/api/GetGamesList.php?name=Shatterhand&platform=Nintendo%20Entertainment%20System%20%28NES%29):
+     | 'Could not access mock content: resolve-shatterhand.data'
+
+ tests/games/Makefile.am | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit d11f0a0d23309060e0bb4f55c43549159da707fa
+Author: 1PunMan <saurabhsingh412@gmail.com>
+Date:   Mon Jun 4 23:58:14 2018 +0530
+
+    test: Add test to check unregistered keys
+    
+    This test checks whether an unregistered system key is
+    able to register itself as a plugin specific key after
+    source resolution.
+    
+    Related: https://gitlab.gnome.org/GNOME/grilo/issues/1
+
+ tests/games/test_games.c | 70 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 70 insertions(+)
+
+commit bfb35597c8bd0e1fd0d2c3a66cbc26eac64217c3
+Author: 1PunMan <saurabhsingh412@gmail.com>
+Date:   Mon May 28 21:06:52 2018 +0530
+
+    thegamesdb: Add developer, publisher, coop & players
+    
+    Allow lua thegamesdb to use developer, publisher, coop & players
+    keys.
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+commit b2ff70cc031d0cdbb1d309b00ffb47ae3cad1987
+Author: 1PunMan <saurabhsingh412@gmail.com>
+Date:   Mon May 28 20:56:43 2018 +0530
+
+    grl-lua-library: Allow lua plugins to register keys by itself
+    
+    Currently lua plugins have no way of registering keys by themselves,
+    to use a new key it has to be added to system keys. This commit allows
+    lua plugins to register app-specific keys by itself by using
+    grl_data_set_for_id() and grl_data_add_for_id() introduced by Grilo in
+    0.3.6 release.
+    
+    https://gitlab.gnome.org/GNOME/grilo/issues/1
+
+ configure.ac                      |  3 +-
+ meson.build                       |  4 +-
+ src/lua-factory/grl-lua-library.c | 82 ++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 86 insertions(+), 3 deletions(-)
+
+commit 770b11088c1b99ec979015faf95078c1e0dfe69e
+Author: Victor Toso <me@victortoso.com>
+Date:   Mon Jul 23 22:40:41 2018 +0200
+
+    All: Removed deprecated g_type_class_add_private()
+    
+    Instead we define the class with G_DEFINE_TYPE_WITH_PRIVATE() or
+    include G_ADD_PRIVATE() when defining with code.
+    
+    This also removes the usage of G_TYPE_INSTANCE_GET_PRIVATE() as we use
+    instead the _get_instance_private()
+    
+    Notes:
+    - Only plugin skipped is Tracker as it needs more adjustments
+    - Some Private structures had to be renamed
+      e.g: GrlLocalMetadataSourcePriv -> GrlLocalMetadataSourcePrivate
+      e.g: GrlMetadataStorePrivate -> GrlMetadataStoreSourcePrivate
+    - The G_DEFINE_TYPE_WITH_PRIVATE() declaration might be moved as it
+      must be after the private struct definition and before the call for
+      _get_instance_private()
+    - Tested with grilo-test-ui and totem
+
+ src/bookmarks/bookmarks-resource.c          |  9 +++----
+ src/bookmarks/grl-bookmarks.c               | 13 +++-------
+ src/bookmarks/grl-bookmarks.h               |  4 ++--
+ src/chromaprint/grl-chromaprint.c           | 13 +++-------
+ src/chromaprint/grl-chromaprint.h           |  4 ++--
+ src/dleyna/grl-dleyna-server.c              |  6 ++---
+ src/dleyna/grl-dleyna-servers-manager.c     |  7 ++----
+ src/dleyna/grl-dleyna-source.c              |  9 ++-----
+ src/dmap/grl-daap-db.c                      |  5 ++--
+ src/dmap/grl-daap-record.c                  |  3 +--
+ src/dmap/grl-daap.c                         | 13 ++--------
+ src/dmap/grl-dpap-db.c                      |  5 ++--
+ src/dmap/grl-dpap-record.c                  | 17 ++++++-------
+ src/dmap/grl-dpap.c                         |  8 ++-----
+ src/filesystem/grl-filesystem.c             | 13 ++--------
+ src/flickr/gflickr.c                        | 12 ++--------
+ src/flickr/grl-flickr.c                     | 11 ++-------
+ src/freebox/freebox-monitor.c               |  8 ++-----
+ src/freebox/grl-freebox.c                   | 14 ++---------
+ src/jamendo/grl-jamendo.c                   | 17 ++++---------
+ src/jamendo/grl-jamendo.h                   |  4 ++--
+ src/local-metadata/grl-local-metadata.c     | 37 +++++++++++------------------
+ src/local-metadata/grl-local-metadata.h     |  4 ++--
+ src/lua-factory/grl-lua-factory.c           |  6 ++---
+ src/magnatune/grl-magnatune.c               | 13 +++-------
+ src/magnatune/grl-magnatune.h               |  4 ++--
+ src/metadata-store/grl-metadata-store.c     | 11 ++-------
+ src/metadata-store/grl-metadata-store.h     |  4 ++--
+ src/opensubtitles/grl-opensubtitles.c       | 27 ++++++++-------------
+ src/opensubtitles/grl-opensubtitles.h       |  4 ++--
+ src/optical-media/grl-optical-media.c       | 13 ++--------
+ src/podcasts/grl-podcasts.c                 | 13 +++-------
+ src/podcasts/grl-podcasts.h                 |  4 ++--
+ src/raitv/grl-raitv.c                       | 13 ++--------
+ src/shoutcast/grl-shoutcast.c               | 17 ++++---------
+ src/shoutcast/grl-shoutcast.h               |  4 ++--
+ src/thetvdb/grl-thetvdb.c                   | 13 +++-------
+ src/thetvdb/grl-thetvdb.h                   |  4 ++--
+ src/thetvdb/thetvdb-resources-episodes.c    |  5 ++--
+ src/thetvdb/thetvdb-resources-fuzzy-names.c |  9 +++----
+ src/thetvdb/thetvdb-resources-series.c      |  9 +++----
+ src/tmdb/grl-tmdb-request.c                 |  8 ++-----
+ src/tmdb/grl-tmdb.c                         | 12 +++-------
+ src/vimeo/grl-vimeo.c                       | 13 +++-------
+ src/vimeo/gvimeo.c                          |  6 ++---
+ src/youtube/grl-youtube.c                   | 11 ++-------
+ src/youtube/grl-youtube.h                   |  4 ++--
+ 47 files changed, 135 insertions(+), 328 deletions(-)
+
+commit 92e0f2a0fb9565e58f388d2606d6a26fead29e8a
+Author: Victor Toso <me@victortoso.com>
+Date:   Wed Jul 25 23:37:14 2018 +0200
+
+    build: require same version for glib components
+    
+    As Glib2 requirement was 2.44 since e0aecb45fc7eaa5 we can use the
+    same version for all glib components that are required in
+    Grilo-Plugins
+    
+    - gmodule-2.0
+    - gobject-2.0
+    - glib-2.0
+
+ configure.ac | 10 ++++++----
+ meson.build  |  9 ++++++---
+ 2 files changed, 12 insertions(+), 7 deletions(-)
+
+commit fa337aa3e7bcd9da327f2f48d5cf79ffafcfec9d
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Tue Jul 24 17:49:26 2018 +0200
+
+    build: Add CI
+
+ .gitlab-ci.yml | 36 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+commit f88ec4080ffa14384a325dcb9f8d7e2c6c220565
+Author: Alexander Mikhaylenko <exalm7659@gmail.com>
+Date:   Tue Jul 17 22:17:52 2018 +0000
+
+    meson: Search lua-factory sources to correct dir
+    
+    Fixes problem partially fixed in commit
+    e3196693258c2935023f482592ff16de6f6f56ec.
+
+ src/lua-factory/meson.build         | 2 +-
+ src/lua-factory/sources/meson.build | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+commit 4d2775612899597fe25d28ab385b6b510af6ca13
+Author: Milo Casagrande <milo@ubuntu.com>
+Date:   Thu Jul 19 06:46:55 2018 +0000
+
+    Update Italian translation
+
+ po/it.po | 353 +++++++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 176 insertions(+), 177 deletions(-)
+
+commit 062bcbacb8a914c85d0c11f4533cab6c7a2804df
+Author: Anders Jonsson <anders.jonsson@norsjovallen.se>
+Date:   Wed Jul 18 11:19:04 2018 +0000
+
+    Update Swedish translation
+
+ po/sv.po | 357 +++++++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 177 insertions(+), 180 deletions(-)
+
+commit 3322a7b99b56677aaac1307273a0f571b01e4b80
+Author: Daniel Șerbănescu <daniel@serbanescu.dk>
+Date:   Tue Jul 17 18:49:09 2018 +0000
+
+    Update Romanian translation
+
+ po/ro.po | 42 +++++++++++++++++++++---------------------
+ 1 file changed, 21 insertions(+), 21 deletions(-)
+
+commit 04280b9762330c295de9653032559b160a5feb85
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Jul 17 17:06:34 2018 +0200
+
+    Post-release version bump to 0.3.7
+
+ configure.ac | 2 +-
+ meson.build  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+commit 99c6c8942a3b19b3c178f2bd3d8deef270db6cf8
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Jul 17 16:56:40 2018 +0200
+
+    Release 0.3.6
+
+ NEWS | 66 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 66 insertions(+)
+
+commit e3196693258c2935023f482592ff16de6f6f56ec
+Author: Alexander Mikhaylenko <exalm7659@gmail.com>
+Date:   Tue Jul 17 12:07:02 2018 +0000
+
+    meson: Install lua-factory sources to correct dir
+    
+    https://gitlab.gnome.org/GNOME/grilo-plugins/issues/1
+
+ meson.build                 | 1 +
+ src/lua-factory/meson.build | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+commit 3e94aa146d3ad5e716509ccecc6923abfc368e68
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Jul 17 13:23:51 2018 +0200
+
+    build: include meson in the tarballs
+    
+    https://gitlab.gnome.org/GNOME/grilo/issues/4
+
+ Makefile.am | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+commit 730fbb685027c4cab1570d597d7b9fc1e2f1a923
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Jul 17 13:29:47 2018 +0200
+
+    tests: Disable metrolyrics test while it's broken
+    
+    The meson change from 4130f1d7006d62b3115923971dddce36eaa08848
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795361
+
+ tests/lua-factory/sources/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 13157fde3f274609f48d9e7dc590023d318dc7ee
+Author: veer <bveer428@gmail.com>
+Date:   Wed Jun 6 00:10:49 2018 +0530
+
+    euronews: Fix parsing of metadata
+    
+    The base url of euronews source might depend on the language now.
+    
+    The url previously pointed to flash stream as now it points to a m3u8
+    playlist, like:
+    
+     | #EXTM3U
+     | #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2000000,RESOLUTION=1280x720
+     | ewnsabrdepri_ger_720p.m3u8
+     | #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1200000,RESOLUTION=960x540
+     | ewnsabrdepri_ger_540p.m3u8
+     | #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=750000,RESOLUTION=640x360
+     | ewnsabrdepri_ger_360p.m3u8
+     | #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=512000,RESOLUTION=400x224
+     | ewnsabrdepri_ger_224p.m3u8
+     | #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=350000,RESOLUTION=320x180
+     | ewnsabrdepri_ger_180p.m3u8
+     | #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=200000,RESOLUTION=160x90
+     | ewnsabrdepri_ger_90p.m3u8
+    
+    Closes #3
+    Signed-off-by: Victor Toso <victortoso@redhat.com>
+
+ src/lua-factory/sources/grl-euronews.lua | 119 +++++++++++++++++++++----------
+ 1 file changed, 80 insertions(+), 39 deletions(-)
+
+commit d9df3871d45a23b87dfe39ecc1c03661f0115f41
+Author: veer <bveer428@gmail.com>
+Date:   Mon Jun 4 02:01:20 2018 +0530
+
+    guardianvideos: Fix parsing of metadata
+    
+    Closes #2
+    Signed-off-by: Victor Toso <victortoso@redhat.com>
+
+ src/lua-factory/sources/grl-guardianvideos.lua | 27 ++++++++++++++++++++++++--
+ 1 file changed, 25 insertions(+), 2 deletions(-)
+
+commit 5f4e6dd666d376ea20d81b9dfc9c8bde35e3dfb2
+Author: Victor Toso <me@victortoso.com>
+Date:   Fri Jul 13 12:01:58 2018 +0200
+
+    tests: Update url for games tests
+    
+    Missed from db0b69b1136 where thegamesdb's lua source changed the base
+    api to http://legacy.thegamesdb.net/api
+    
+    Signed-off-by: Victor Toso <victortoso@redhat.com>
+
+ tests/games/data/network-data.ini | 28 ++++++++++++++--------------
+ 1 file changed, 14 insertions(+), 14 deletions(-)
+
+commit 58fc5b8c2ee8a9b50a9b2a43e567646f68c60ee8
+Author: Matej Urbančič <mateju@svn.gnome.org>
+Date:   Wed Jul 11 21:47:38 2018 +0200
+
+    Updated Slovenian translation
+
+ po/sl.po | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+commit ccd3e8373e015e33e1600b900c5852448ab5fbc0
+Author: Matej Urbančič <mateju@svn.gnome.org>
+Date:   Wed Jul 11 21:45:58 2018 +0200
+
+    Added Slovenian translation
+
+ po/sl.po | 367 ++++++++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 184 insertions(+), 183 deletions(-)
+
+commit bb144d02345d3b9998c891e6229b44f446f41920
+Author: Matej Urbančič <mateju@svn.gnome.org>
+Date:   Wed Jul 11 21:43:33 2018 +0200
+
+    Added Slovenian translation
+
+ po/sl.po | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+commit 9cf34da94dce712dde3b3f189fb9000c60deb4b8
+Author: Balázs Meskó <meskobalazs@fedoraproject.org>
+Date:   Mon Jul 9 13:12:38 2018 +0000
+
+    Update Hungarian translation
+
+ po/hu.po | 347 +++++++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 173 insertions(+), 174 deletions(-)
+
+commit db0b69b1136e6ad425678ac5e490c1b84c3d8723
+Author: 1PunMan <saurabhsingh412@gmail.com>
+Date:   Fri Jul 6 21:03:34 2018 +0530
+
+    thegamesdb: Update base api url
+    
+    The current API has been deprecated and a date to be shutdown is yet
+    to be defined but in the meanwhile the url needs to be updated to keep
+    source working.
+    
+    Quote from: https://forums.thegamesdb.net/viewtopic.php?t=27
+    
+    On Jun 10, 2018
+     > 2 weeks ago we started redirecting http://thegamesdb.net/
+     > traffic to http://legacy.thegamesdb.net/,
+     > and now in 2 weeks time whats currently known as
+     > https://beta.thegamesdb.net/ would be moved to
+     > https://thegamesdb.net/
+    
+    https://gitlab.gnome.org/GNOME/grilo-plugins/issues/6
+    Signed-off-by: Victor Toso <victortoso@redhat.com>
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 1e4d89404fddf503ce95bb2f7237c0375df63f8c
+Author: Daniel Mustieles <daniel.mustieles.contractor@bbva.com>
+Date:   Mon Jul 9 08:51:34 2018 +0200
+
+    Updated Spanish translation
+
+ po/es.po | 361 ++++++++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 185 insertions(+), 176 deletions(-)
+
+commit a61574b04ddcbda7627d4e78585fdb307d301fb5
+Author: Bruno Lopes da Silva <brunolopesbldsb@gmail.com>
+Date:   Sun Jul 8 16:33:23 2018 +0000
+
+    Update Brazilian Portuguese translation
+
+ po/pt_BR.po | 370 ++++++++++++++++++++++++++++++------------------------------
+ 1 file changed, 185 insertions(+), 185 deletions(-)
+
+commit f5a01b36d88e86d13078a9f1544e68f359b9b17f
+Author: Tim Sabsch <tim@sabsch.com>
+Date:   Sat Jul 7 08:57:31 2018 +0000
+
+    Update German translation
+
+ po/de.po | 350 +++++++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 175 insertions(+), 175 deletions(-)
+
+commit 46273f83a611be3c94ba263f52504c7795ca29dd
+Author: Piotr Drąg <piotrdrag@gmail.com>
+Date:   Fri Jul 6 15:56:02 2018 +0200
+
+    Update Polish translation
+
+ po/pl.po | 354 +++++++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 177 insertions(+), 177 deletions(-)
+
+commit 4a57378db9e0f12b5bab92245903c011417cea1f
+Author: 1PunMan <saurabhsingh412@gmail.com>
+Date:   Sat May 19 17:37:08 2018 +0530
+
+    test: Add test to check multiple genre
+    
+    Currently thegamesdb only returns genre for games with a
+    single genre. This test checks that thegamesdb returns
+    multiple genres for the game Shatterhand.
+
+ tests/games/test_games.c | 61 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 61 insertions(+)
+
+commit 95f991c76d4bde6746336e949d0329c42fec6e22
+Author: 1PunMan <saurabhsingh412@gmail.com>
+Date:   Thu May 17 16:04:42 2018 +0530
+
+    thegamesdb: Fix setting multiple genres
+    
+    The _game.Genres_ table always contains a single _genre_ value. In
+    case the Game contains multiple genres, we should iterate over the
+    array in _game.Genres.genre_ which this patch does.
+    
+    Merge-request: !5
+    https://bugzilla.gnome.org/show_bug.cgi?id=796231
+    
+    Signed-off-by: Victor Toso <victortoso@redhat.com>
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+commit 97a4c1aba83652033e0c699b48febf9dd794c106
+Author: Piotr Drąg <piotrdrag@gmail.com>
+Date:   Thu Oct 6 04:12:45 2016 +0200
+
+    Use Unicode in translatable strings
+    
+    Changes "…" quotation marks to “…”, ' apostrophes to ’, - hyphens to —,
+    and one - hyphen to a colon.
+    
+    See https://developer.gnome.org/hig/stable/typography.html
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=772494
+
+ src/dleyna/grl-dleyna-source.c          | 4 ++--
+ src/dmap/grl-daap.c                     | 2 +-
+ src/dmap/grl-dpap.c                     | 2 +-
+ src/flickr/grl-flickr.c                 | 4 ++--
+ src/jamendo/grl-jamendo.c               | 2 +-
+ src/magnatune/grl-magnatune.c           | 2 +-
+ src/metadata-store/grl-metadata-store.c | 4 ++--
+ src/tracker/grl-tracker-source-api.c    | 2 +-
+ src/tracker/grl-tracker-utils.c         | 4 ++--
+ 9 files changed, 13 insertions(+), 13 deletions(-)
+
+commit 464fcc62d1978d0cafd997a48b5e48b464c710a1
+Author: Victor Toso <me@victortoso.com>
+Date:   Fri Jul 6 10:51:27 2018 +0200
+
+    doap: Add Description and Victor Toso as co-maintainer
+
+ grilo-plugins.doap | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+commit 2f119e1272394afba3634ab5bdbd3b9991571c35
+Author: Exalm <exalm7659@gmail.com>
+Date:   Tue May 8 21:30:56 2018 +0500
+
+    thegamesdb: Add Virtual Boy support
+    
+    Support Virtual Boy games via 'application/x-virtual-boy-rom' MIME type.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795943
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 4130f1d7006d62b3115923971dddce36eaa08848
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Tue Apr 24 15:13:06 2018 +0200
+
+    tests: Disable metrolyrics test while it's broken
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795361
+
+ tests/lua-factory/sources/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit f0f14a4fdfdbf1d70b0b28a2a18119da5f8ab4fa
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Wed Apr 18 18:08:59 2018 +0200
+
+    metrolyrics: Add debug helper to the tests
+    
+    Save the "computed" lyrics to a temporary file on disk, so as to avoid
+    having to guess how to have it downloaded and processed.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795361
+
+ tests/lua-factory/sources/test_lua_metrolyrics.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+commit 6e8a504228178f8e094857f9542771f6bb40efb9
+Author: Exalm <exalm7659@gmail.com>
+Date:   Sun Apr 15 19:22:10 2018 +0500
+
+    thegamesdb: Add TurboGrafx-CD support
+    
+    Add TurboGrafx-CD support via the unregistered
+    'application/x-pc-engine-cd-rom' MIME type as none is registered for
+    TurboGrafx-CD discs, similar to PlayStation games.
+    
+    Also move both TurboGrafx-CD and PlayStation to a separate section.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795275
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+commit 132f6c4af8ac945795520f239d7290c8fd899caa
+Author: Exalm <exalm7659@gmail.com>
+Date:   Sun Apr 15 19:20:19 2018 +0500
+
+    thegamesdb: Add Neo-Geo Pocket Color support
+    
+    Add Neo-Geo Pocket Color support via the
+    'application/x-neo-geo-pocket-color-rom' MIME type:
+    https://bugs.freedesktop.org/show_bug.cgi?id=106055
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795275
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit f8b9bad19d522c2f8cd25bb3e56a02f348d26fa3
+Author: Exalm <exalm7659@gmail.com>
+Date:   Sun Apr 15 19:18:17 2018 +0500
+
+    thegamesdb: Add WonderSwan and WonderSwan Color support
+    
+    Add WonderSwan and WonderSwan Color support via
+    'application/x-wonderswan-rom' and `application/x-wonderswan-color-rom'
+    MIME types.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795275
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit c066a6a8451e610ab0f42701f8adba4fc9d84729
+Author: Exalm <exalm7659@gmail.com>
+Date:   Sun Apr 15 19:13:18 2018 +0500
+
+    thegamesdb: Add Famicom Disk System support
+    
+    Add FDS support via the 'application/x-fds-disk' MIME type.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795275
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit caeb5dc7b5b68e91afd4ae7146a01944e34c37be
+Author: Exalm <exalm7659@gmail.com>
+Date:   Sun Apr 15 19:12:05 2018 +0500
+
+    thegamesdb: Add Atari Lynx support
+    
+    Add Atari Lynx support via the 'application/x-atari-lynx-rom' MIME type.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=795275
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 2d1ec6776a1e1746f3c75ddaba161de755c0cdb8
+Author: Exalm <exalm7659@gmail.com>
+Date:   Wed Apr 18 20:31:32 2018 +0500
+
+    thegamesdb: Handle situation with only one result
+    
+    In that case, results_table.Data.Game would contain GameTitle, id and
+    other keys directly and #results_table.Data.Game would return 0.
+    
+    All thegamesdb tests should pass now.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=794504
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+commit 68131928490f0009a77cf7d9829ad46d8ab8f342
+Author: Exalm <exalm7659@gmail.com>
+Date:   Wed Apr 18 20:28:31 2018 +0500
+
+    Revert "thegamesdb: Check for empty list"
+    
+    This reverts commit 6a06a6fdbafb16d3e4137bfe2522845255eada49.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=794504
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+commit e5c9aba3837dbce14ab96c9fff68641a7d5b03f1
+Author: Exalm <exalm7659@gmail.com>
+Date:   Wed Apr 18 20:30:13 2018 +0500
+
+    test: Add a test for Shatterhand game
+    
+    This is a case of thegamesdb returning only one search result.
+    
+    This test is expected to fail.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=794504
+
+ tests/games/data/network-data.ini                 |  6 ++++
+ tests/games/data/resolve-getgame-shatterhand.data | 41 +++++++++++++++++++++++
+ tests/games/data/resolve-shatterhand.data         | 10 ++++++
+ tests/games/test_games.c                          |  7 ++++
+ 4 files changed, 64 insertions(+)
+
+commit b1ae7098ee6b22480d8fe11d343a2150ff1414ee
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Wed Apr 18 17:58:54 2018 +0200
+
+    tmdb: Fix warning in g_object_ref() assignment
+    
+    grilo-plugins/src/tmdb/grl-tmdb.c: In function ‘grl_tmdb_source_resolve’:
+    grilo-plugins/src/tmdb/grl-tmdb.c:1346:17: warning: assignment to ‘GrlTmdbSource *’ {aka ‘struct _GrlTmdbSource *’} from incompatible pointer type ‘GrlSource *’ {aka ‘struct _GrlSource *’} [-Wincompatible-pointer-types]
+       closure->self = g_object_ref (source);
+                     ^
+
+ src/tmdb/grl-tmdb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit d18b06fa2a9c6e4b667b00a248fed611b81d6f9c
+Author: Daniel Șerbănescu <daniel@serbanescu.dk>
+Date:   Sun Apr 8 19:45:41 2018 +0000
+
+    Add Romanian translation
+
+ po/LINGUAS |   1 +
+ po/ro.po   | 618 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 619 insertions(+)
+
+commit b3b8a98bdfe884fd7060e06244bd107e1544ec26
+Author: Jean Felder <jfelder@src.gnome.org>
+Date:   Sat Mar 31 00:11:09 2018 +0200
+
+    itunes-podcast: Handle GRL_COUNT_INFINITY
+    
+    Itunes podcast api does not handle limit equal to -1: it always
+    returns a number of results lower than MAX_ITEMS.
+    This also resolves a bug inside fetch_search_results_cb and
+    fetch_browse_results_cb. These functions expect count to be positive.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=794849
+
+ src/lua-factory/sources/grl-itunes-podcast.lua | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+commit 81076c6da54599acd814e2ce628fb6e2208cbed5
+Author: Jean Felder <jfelder@src.gnome.org>
+Date:   Sat Mar 31 13:41:57 2018 +0200
+
+    magnatune: Add cover art support
+    
+    It follows the specifications defined at:
+    http://magnatune.com/info/sqlite-normalized
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=794845
+    Signed-off-by: Victor Toso <me@victortoso.com>
+
+ src/magnatune/grl-magnatune.c | 42 +++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 37 insertions(+), 5 deletions(-)
+
+commit de694c68862e86fa6ff2ed3c0d2dd4e765afce18
+Author: Jean Felder <jfelder@src.gnome.org>
+Date:   Sat Mar 31 13:17:57 2018 +0200
+
+    magnatune: Remove trailing spaces
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=794845
+
+ src/magnatune/grl-magnatune.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+commit f9f16f17d813c2559b5aa9e9dfd13d1ac7dc7a74
+Author: Claude Paroz <claude@2xlibre.net>
+Date:   Mon Mar 26 14:43:05 2018 +0200
+
+    Add glib preset to meson i18n call
+
+ po/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 08cb2a843925eeefb59c6db3abbfe47cb565edd4
+Author: Cheng-Chia Tseng <pswo10680@gmail.com>
+Date:   Mon Mar 26 08:22:40 2018 +0000
+
+    Update Chinese (Taiwan) translation
+
+ po/zh_TW.po | 146 ++++++++++++++++++++++++++++++------------------------------
+ 1 file changed, 73 insertions(+), 73 deletions(-)
+
+commit 6a06a6fdbafb16d3e4137bfe2522845255eada49
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Mar 20 07:49:12 2018 +0100
+
+    thegamesdb: Check for empty list
+    
+    Checking if table exists is not enough. If xml field exists,
+    grl.lua.xml.string_to_table() will include that into the returning
+    table.
+    
+    Resolves: https://bugzilla.gnome.org/show_bug.cgi?id=794504
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+commit e21f495c9798ccb63f6c4f25fd68f951cfd6b9e1
+Author: gogo <trebelnik2@gmail.com>
+Date:   Fri Mar 16 19:14:12 2018 +0000
+
+    Add Croatian translation
+
+ po/LINGUAS |   1 +
+ po/hr.po   | 618 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 619 insertions(+)
+
+commit 7ecf4b230c7b0144e579f89b594bf2ce871d19f1
+Author: Justin van Steijn <jvs@fsfe.org>
+Date:   Sun Nov 5 17:00:40 2017 +0000
+
+    Add Dutch translation
+
+ po/LINGUAS |   1 +
+ po/nl.po   | 618 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 619 insertions(+)
+
+commit 8c5969e2f14fc4fec2fa3e76f2ffe962f51bdda5
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Tue Oct 10 11:08:22 2017 +0200
+
+    lua-factory: Remove unused variable in XML parser
+    
+    The variable assignment wasn't used, and "node" was already assigned to
+    either the root node, or one of its children earlier in the function.
+    
+    Caught by covscan:
+    grilo-plugins-0.3.4/src/lua-factory/lua-library/lua-xml.c:88: assigned_pointer: Assigning value from "is_root_node ? node : node->children" to "node" here, but that stored value is overwritten before it can be used.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=788757
+
+ src/lua-factory/lua-library/lua-xml.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+commit a7eb4b95006df946dfdd66f95ca16250f97ef3ed
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Tue Oct 10 11:04:27 2017 +0200
+
+    lua-factory: Replace assertions with g_return_* macros
+    
+    Assertions might be disabled, and really shouldn't be used from within a
+    library, but this should protect us enough for debugging purposes.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=788757
+
+ src/lua-factory/grl-lua-library-operations.c | 38 ++++++++++++++--------------
+ 1 file changed, 19 insertions(+), 19 deletions(-)
+
+commit 563fbe481984da711b8eed404f069c7de30fea0f
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Thu Oct 5 14:49:09 2017 +0200
+
+    lua-factory: Fix warning in Apple trailers source
+    
+    We should make the filesize a number, not pass it
+    down as a string.
+    
+    [lua-library] grl-lua-library.c:399: 'string' is not compatible for 'size'
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=788557
+
+ src/lua-factory/sources/grl-appletrailers.lua | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit f26584d3c1bb6179d71b26a9c78012c95ddb6780
+Author: Xavi Ivars <xavi.ivars@gmail.com>
+Date:   Thu Oct 5 14:28:30 2017 +0200
+
+    [l10n] Updated Catalan (Valencian) translation
+
+ po/ca@valencia.po | 389 +++++++++++++++++++++++++++++-------------------------
+ 1 file changed, 208 insertions(+), 181 deletions(-)
+
+commit 882086cbf6936e475acafdc804a3a6264c7ebdfb
+Author: Christophe Fergeau <cfergeau@redhat.com>
+Date:   Mon Sep 18 11:09:40 2017 +0200
+
+    opensubtitles: Add ::finalize implementation
+    
+    The source has some private data to free when an instance goes away.
+
+ src/opensubtitles/grl-opensubtitles.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+commit 1279ea98e4c29180050330ab324f71051ec39831
+Author: Christophe Fergeau <cfergeau@redhat.com>
+Date:   Mon Sep 18 11:08:29 2017 +0200
+
+    gravatar: Always free the GMatchInfo from g_regex_match()
+    
+    The API doc is explicit about it:
+    «  Note that if match_info is not NULL then it is created even if the
+    function returns FALSE, i.e. you must free it regardless if regular
+    expression actually matched. »
+
+ src/gravatar/grl-gravatar.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 85a51b011e12bb772508ff7a1cf62c3e6f4ce0d5
+Author: Jordi Mas <jmas@softcatala.org>
+Date:   Sun Sep 10 08:52:31 2017 +0200
+
+    Fixes to Catalan translation
+
+ po/ca.po | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+commit d7397a45a6ccba952c4a9160c6268c1c7ca6883f
+Author: Jordi Mas <jmas@softcatala.org>
+Date:   Thu Sep 7 16:11:54 2017 +0200
+
+    Update Catalan translation
+
+ po/ca.po | 355 ++++++++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 182 insertions(+), 173 deletions(-)
+
+commit 611415c76ae599d735a95e81565fe35f08354184
+Author: Emin Tufan Çetin <etcetin@gmail.com>
+Date:   Wed Sep 6 06:52:04 2017 +0000
+
+    Update Turkish translation
+
+ po/tr.po | 426 ++++++++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 217 insertions(+), 209 deletions(-)
+
+commit 991aef4e7b978cd6b2d14297870cd9d1da3a807a
+Author: Ask Hjorth Larsen <asklarsen@gmail.com>
+Date:   Mon Aug 28 19:24:26 2017 +0200
+
+    Updated Danish translation
+
+ po/da.po | 83 +++++++++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 43 insertions(+), 40 deletions(-)
+
+commit ab76e7e0ce39cec80b4a7ce34f471ded2bdce998
+Author: Victor Toso <me@victortoso.com>
+Date:   Fri Aug 25 11:09:50 2017 +0200
+
+    Post-release version bump to 0.3.6
+
+ configure.ac | 2 +-
+ meson.build  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+commit ec1c807ae0a3d1f2f5ca12c3147e053d1f0bddd1
+Author: Victor Toso <me@victortoso.com>
+Date:   Fri Aug 25 10:52:14 2017 +0200
+
+    Release 0.3.5
+
+ NEWS | 41 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+commit 53a2bccb6a623c985cf5a7e558fe52a7c5fbb0d8
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Thu Aug 24 19:14:27 2017 +0200
+
+    Revert "tests: fix url for mocked content in thegamesdb"
+    
+    This reverts commit a93945beb7da8b9334855e67a3f8610c665d26a3.
+    
+    The test is supposed to lookup a Game Gear game, as can be seen
+    from the contents of the results file.
+    
+    Not remembering the original reason for that test case (probably
+    accents :), make it be a test for Game Gear mime-type support
+    in the Games DB code.
+
+ src/lua-factory/sources/grl-thegamesdb.lua | 3 ++-
+ tests/games/data/network-data.ini          | 2 +-
+ tests/games/test_games.c                   | 2 +-
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+
+commit 8f80b1dcf749d2197aed89064465faf5a098813f
+Author: Carlos Garnacho <carlosg@gnome.org>
+Date:   Tue Aug 22 11:53:21 2017 +0200
+
+    tracker: Use standard Sparql1.1 syntax
+    
+    The "AS var" syntax was non-standard, the Sparql1.1 spec defines this
+    syntax as "AS ?var", which Tracker 1.x has also accepted for a very long
+    time.
+    
+    Tracker 2.x is dropping the non-standard syntax, so switch the Tracker
+    plugin to using the Sparql1.1 syntax, which shall work with Tracker 1.x
+    and 2.x.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=786602
+
+ src/tracker/grl-tracker-source-api.c | 6 +++---
+ src/tracker/grl-tracker-utils.c      | 4 ++--
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+commit 95f3e1b9afd86e7ea9d281dab6b99c823f99d993
+Author: Pawan Chitrakar <chautari@gmail.com>
+Date:   Wed Aug 16 08:55:03 2017 +0000
+
+    Add Nepali translation
+
+ po/LINGUAS |   1 +
+ po/ne.po   | 648 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 649 insertions(+)
+
+commit 152c31cdcce5ac2b25f953fa4f4298a490f8f583
+Author: Carlos Garnacho <carlosg@gnome.org>
+Date:   Tue Aug 8 14:24:47 2017 +0200
+
+    build: Detect libtracker-sparql-2.0 in meson build
+    
+    Commit fce20295 only added support for autotools, also allow the
+    meson build to detect and use libtracker-sparql-2.0 if found.
+
+ meson.build | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+commit fce20295baa23a44f1c6263eeaacf255bc85d02b
+Author: Carlos Garnacho <carlosg@gnome.org>
+Date:   Wed Jun 28 23:42:24 2017 +0200
+
+    build: Add libtracker-sparql-2.0 to checks
+    
+    It remains API compatible wrt the previous versions, as far as current
+    usage in the tracker plugin goes.
+
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 891bd77d569d2b7e7c9d7a9b2c049228ed01684f
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Thu Jun 29 17:27:02 2017 +0200
+
+    lua-factory: Fix compile-time warning with GCC7
+    
+    duplicate ‘const’ declaration specifier [-Wduplicate-decl-specifier]
+    
+    The warning was added in:
+    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=43651
+    just for this purpose.
+    
+    "
+    int foo(const char const *data);
+    ^~~~~~
+    1 warning generated.
+    
+    [...] In that case it was clearly a mistake, because the author meant
+    'const char *const data' [...]
+    "
+
+ src/lua-factory/grl-lua-factory.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 40a9efd76b77427ed12b78213961482d1b975093
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Fri Jun 17 17:16:10 2016 +0200
+
+    flickr: Add EXIF tags to grilo keys
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/grl-flickr.c | 105 ++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 101 insertions(+), 4 deletions(-)
+
+commit 387d9d2a3e671107f4e373b3ff79e852f00680c2
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Fri Jun 17 15:40:00 2016 +0200
+
+    flickr: Add parsing of EXIF data
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 105 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/flickr/gflickr.h |   6 +++
+ 2 files changed, 111 insertions(+)
+
+commit ff95957114b081cafd3940f79720c7ef665f77cb
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Tue Jun 14 15:52:30 2016 +0200
+
+    flickr: Fix possible crashes with invalid network responses
+    
+    Check whether we fail to parse the XML sent back by the server. For
+    example, if we were behind a captive portal, we'd try to parse garbage
+    as though it came from the Flickr servers.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 175 +++++++++++++++++++++++++++++----------------------
+ 1 file changed, 99 insertions(+), 76 deletions(-)
+
+commit 9b13d140d22aab001bccfd6246f70872abcdae0d
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Wed Jun 15 15:31:31 2016 +0200
+
+    flickr: Move g_strconcat() to its own line
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+commit 91e35e4b6c289d6c63036eac34a5b5e50d9da594
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Wed Jun 15 15:30:19 2016 +0200
+
+    flickr: Check return of xml*Get() functions
+    
+    That way we make sure the property exists and was properly parsed.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 46 +++++++++++++++++++++++++++-------------------
+ 1 file changed, 27 insertions(+), 19 deletions(-)
+
+commit 91516f6469d6cba506ef93a81e84a7443d1c07f4
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Tue Jun 14 16:05:00 2016 +0200
+
+    flickr: Don't mix declaration and code
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 63 ++++++++++++++++++++++++++++++++--------------------
+ 1 file changed, 39 insertions(+), 24 deletions(-)
+
+commit 2e25e54611009489db7582cd090e4a3a9c703e09
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Tue Jun 14 16:16:58 2016 +0200
+
+    flickr: Don't mix xmlChar and gchar inside hash_table
+    
+    Mixing both types can be potentially bad since they use different
+    allocators. Instead, use the proper function for freeing memory from a
+    xmlChar.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 28 ++++++++++++++++++++++------
+ 1 file changed, 22 insertions(+), 6 deletions(-)
+
+commit d9708fd5e3fc234e119f2ad33fb87c54c085882b
+Author: Rafael Fonseca <r4f4rfs@gmail.com>
+Date:   Tue Jun 14 16:31:15 2016 +0200
+
+    flickr: Fix variable leaking when response != 'ok'
+    
+    This variable was only being freed if the response was 'ok'.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=707643
+
+ src/flickr/gflickr.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+commit 88d674aaa46bc16ebc7d17ed13043e180a236e40
+Author: Felipe Borges <felipeborges@gnome.org>
+Date:   Tue May 2 11:28:02 2017 +0200
+
+    lastfm-cover: Use HTTPS rather than insecure HTTP
+    
+    To avoid leaking (potentially uniquely identifiable) user data over
+    plain text, use HTTPS whenever possible.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=766789
+
+ src/lua-factory/sources/grl-lastfm-cover.lua | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit 24e12ef1cb1a855b7b0d2e88ec244d8e2ab83470
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Fri Apr 14 16:21:29 2017 +0200
+
+    lua-factory: Fix lua sources path with Meson
+    
+    lua-factory was trying to find lua sources in:
+    ~/.local/share/share/grilo-plugins/grl-lua-factory
+    amongst other directories with duplicated "share" components.
+    
+    luafactorydir is used to pass "LUA_FACTORY_SOURCE_LOCATION" as a define,
+    but it has a value of "grilo-plugins/${LUA_FACTORY_PLUGIN_ID}" when
+    using autotools, without a "datadir" component.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=781318
+
+ src/lua-factory/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit c56808c1914b6433f45078b01df507e20926b200
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Fri Apr 14 16:20:37 2017 +0200
+
+    lua-factory: Better debug in get_lua_sources()
+    
+    So we can know which directories it's trying to read sources from, and
+    whether it succeeded in opening those directories.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=781318
+
+ src/lua-factory/grl-lua-factory.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+commit 39a15bc911cc3c3af92181fefc5d59fe40d68ec4
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Thu Apr 13 17:17:59 2017 +0200
+
+    meson: Fix DPAP/DAAP plugin names
+    
+    Both had their ID set to the same value (DMAP_PLUGIN_ID), instead
+    to their own ID, meaning that one of them always failed to load as a
+    duplicate.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=781278
+
+ meson.build          | 7 ++++++-
+ src/dmap/meson.build | 2 --
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+commit 275659ae7ffe0799f601c9a96d0f52dcd4180b19
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Thu Apr 13 17:14:34 2017 +0200
+
+    dmap: Rename the DAAP plugin to DAAP
+    
+    DAAP is its name, let's name it its name.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=781278
+
+ src/dmap/grl-daap.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit ce3e62476cc4c2bfdb63e6779e75e4c7153db0aa
+Author: Emmanuele Bassi <ebassi@gnome.org>
+Date:   Thu Apr 13 10:07:47 2017 +0100
+
+    build: Support gmime 3.0, Part II
+    
+    Commit f460a00bea4dcb91c6da9dd79caba463bc57b56a only updated the
+    autotools build, but Continuous uses the Meson one.
+
+ meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 4329dda2c53f9a7bd2a3f6dd9334d4eb5207e9fd
+Author: Michael Catanzaro <mcatanzaro@igalia.com>
+Date:   Wed Apr 12 21:27:58 2017 -0500
+
+    Fix build with latest gmime3
+    
+    This has been broken for weeks....
+    
+    Also, drop support for older gmime since we're early in the release
+    cycle and there's not really any compelling reason not to. Obviously
+    this means there must be no more grilo-plugins releases until the next
+    gmime release. If this is undesired then grilo-plugins could grow
+    conditional support for both versions of gmime, but it seem pointless.
+
+ configure.ac                |  8 ++------
+ src/podcasts/grl-podcasts.c | 10 +++++-----
+ 2 files changed, 7 insertions(+), 11 deletions(-)
+
+commit f460a00bea4dcb91c6da9dd79caba463bc57b56a
+Author: Bastien Nocera <hadess@hadess.net>
+Date:   Tue Mar 7 15:09:30 2017 +0100
+
+    build: Support gmime 3.0
+    
+    And remove support for gmime 2.4 from 2012.
+
+ configure.ac | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit b3ab9d059227169e1d57f3157880548f2d33109c
+Author: Victor Toso <me@victortoso.com>
+Date:   Wed Feb 22 22:46:47 2017 +0100
+
+    lua-factory: Don't leak list in xml parser
+    
+    We were calling g_list_free() in the pointer that is the last element
+    of the list due g_list_reverse() that was called previously.
+    
+    1,176 (336 direct, 840 indirect) bytes in 14 blocks are definitely
+    lost in loss record 3,289 of 3,315
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x4E895B8: g_malloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4EA1B12: g_slice_alloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7F9E5: g_list_prepend (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x9377E69: build_table_recursively (lua-xml.c:64)
+       by 0x9377FAF: build_table_recursively (lua-xml.c:81)
+       by 0x9377FAF: build_table_recursively (lua-xml.c:81)
+       by 0x9377FAF: build_table_recursively (lua-xml.c:81)
+       by 0x9378182: build_table_from_xml_reader (lua-xml.c:121)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=779444
+
+ src/lua-factory/lua-library/lua-xml.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+commit 475044bb54e36b5f91d657423a3da7934ad71423
+Author: Victor Toso <me@victortoso.com>
+Date:   Wed Mar 1 22:36:45 2017 +0100
+
+    metadata-store: set finalize function to clean up
+    
+    514,040 (80 direct, 513,960 indirect) bytes in 1 blocks are definitely lost in loss record 19,311 of 19,314
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x222277D6: sqlite3MemMalloc (sqlite3.c:20398)
+       by 0x22202967: mallocWithAlarm (sqlite3.c:24067)
+       by 0x22202967: sqlite3Malloc (sqlite3.c:24098)
+       by 0x22202A0D: sqlite3MallocZero (sqlite3.c:24398)
+       by 0x222499F5: sqlite3BtreeOpen (sqlite3.c:60320)
+       by 0x22297786: openDatabase (sqlite3.c:139437)
+       by 0x2662D0B0: grl_metadata_store_source_init (grl-metadata-store.c:237)
+       by 0x53C07FA: g_type_create_instance (gtype.c:1866)
+       by 0x53A269A: g_object_new_internal (gobject.c:1783)
+       by 0x53A45AD: g_object_new_valist (gobject.c:2042)
+       by 0x53A4850: g_object_new (gobject.c:1626)
+       by 0x2662CF9E: grl_metadata_store_source_new (grl-metadata-store.c:194)
+       by 0x2662CF9E: grl_metadata_store_source_plugin_init (grl-metadata-store.c:167)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=779444
+
+ src/metadata-store/grl-metadata-store.c | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+commit 83b76e0d2c6172e297d8bb402650d6ce5ab76290
+Author: Victor Toso <me@victortoso.com>
+Date:   Wed Mar 1 21:42:24 2017 +0100
+
+    metadata-store: ignore error on backwards compatibility query
+    
+    Failure happens due the fact that sql table already has those columns.
+    This fixes the following leak.
+    
+    40 bytes in 1 blocks are definitely lost in loss record 10,094 of 20,529
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x217107D6: sqlite3MemMalloc (sqlite3.c:20398)
+       by 0x216EB967: mallocWithAlarm (sqlite3.c:24067)
+       by 0x216EB967: sqlite3Malloc (sqlite3.c:24098)
+       by 0x2175382B: sqlite3_exec (sqlite3.c:108798)
+       by 0x2624FD1B: grl_metadata_store_source_init (grl-metadata-store.c:271)
+       by 0x53C07FA: g_type_create_instance (gtype.c:1866)
+       by 0x53A269A: g_object_new_internal (gobject.c:1783)
+       by 0x53A45AD: g_object_new_valist (gobject.c:2042)
+       by 0x53A4850: g_object_new (gobject.c:1626)
+       by 0x2624F93C: grl_metadata_store_source_new (grl-metadata-store.c:194)
+       by 0x2624F874: grl_metadata_store_source_plugin_init (grl-metadata-store.c:167)
+       by 0x4E48615: grl_plugin_load (grl-plugin.c:243)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=779444
+
+ src/metadata-store/grl-metadata-store.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+commit d3e7fedf1d0a55c1c8441af647b13db80cb32395
+Author: Victor Toso <me@victortoso.com>
+Date:   Thu Feb 23 21:19:19 2017 +0100
+
+    lua-factory: fix leak from grl_config_get_string()
+    
+    As it uses g_key_file_get_string() which returns newly allocated.
+    
+    27 bytes in 1 blocks are definitely lost in loss record 1,825 of 4,702
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x4E895B8: g_malloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7B24A: ??? (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7CA27: g_key_file_get_string (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x53D0514: grl_config_get_string (grl-config.c:278)
+       by 0xA0A5BDD: all_mandatory_options_has_value (grl-lua-factory.c:1133)
+       by 0xA0A5BDD: grl_lua_factory_source_new (grl-lua-factory.c:467)
+       by 0xA0A68CB: grl_lua_factory_plugin_init (grl-lua-factory.c:235)
+       by 0x53AD615: grl_plugin_load (grl-plugin.c:243)
+       by 0x53AF3BF: activate_plugin (grl-registry.c:483)
+       by 0x53B2584: grl_registry_activate_plugin_by_id (grl-registry.c:1382)
+       by 0x40206C: test_lua_factory_setup (test_lua_factory_utils.c:60)
+       by 0x40193E: test_acoustid_setup (test_lua_acoustid.c:194)
+       by 0x40193E: main (test_lua_acoustid.c:200)
+    
+    27 bytes in 1 blocks are definitely lost in loss record 1,839 of 4,775
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x4E895B8: g_malloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7B24A: ??? (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7CA27: g_key_file_get_string (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x53D0514: grl_config_get_string (grl-config.c:278)
+       by 0xA0A5F06: lua_plugin_source_init (grl-lua-factory.c:580)
+       by 0xA0A5F06: grl_lua_factory_source_new (grl-lua-factory.c:477)
+       by 0xA0A68DB: grl_lua_factory_plugin_init (grl-lua-factory.c:235)
+       by 0x53AD615: grl_plugin_load (grl-plugin.c:243)
+       by 0x53AF3BF: activate_plugin (grl-registry.c:483)
+       by 0x53B2584: grl_registry_activate_plugin_by_id (grl-registry.c:1382)
+       by 0x40206C: test_lua_factory_setup (test_lua_factory_utils.c:60)
+       by 0x40193E: test_acoustid_setup (test_lua_acoustid.c:194)
+       by 0x40193E: main (test_lua_acoustid.c:200)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=779444
+
+ src/lua-factory/grl-lua-factory.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+commit 85ac986410cd54d8985c943b5c94aa80579b0e66
+Author: Victor Toso <me@victortoso.com>
+Date:   Wed Feb 22 23:02:24 2017 +0100
+
+    tests: Do not leak missing keys in spotify
+    
+    24 bytes in 1 blocks are definitely lost in loss record 1,235 of 3,381
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x4E895B8: g_malloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4EA1B12: g_slice_alloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7F9E5: g_list_prepend (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x9372497: grl_lua_factory_source_may_resolve (grl-lua-factory.c:1717)
+       by 0x53BBC13: grl_source_may_resolve (grl-source.c:3464)
+       by 0x401C00: test_may_resolve_missing_key (test_spotify_cover.c:112)
+    
+    48 (24 direct, 24 indirect) bytes in 1 blocks are definitely lost in loss record 2,010 of 3,381
+       at 0x4C2DB9D: malloc (vg_replace_malloc.c:299)
+       by 0x4E895B8: g_malloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4EA1B12: g_slice_alloc (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x4E7FE19: g_list_copy_deep (in /usr/lib64/libglib-2.0.so.0.5000.3)
+       by 0x93724D4: grl_lua_factory_source_may_resolve (grl-lua-factory.c:1696)
+       by 0x53BBC13: grl_source_may_resolve (grl-source.c:3464)
+       by 0x401A7B: test_may_resolve_missing_media (test_spotify_cover.c:133)
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=779444
+
+ tests/spotify-cover/test_spotify_cover.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit 0238bc5e203c5f77638ea3ea24441e3de6b1cad3
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Feb 28 12:02:41 2017 +0100
+
+    meson: do not use absolute path
+    
+    This patch fixes the build with meson v0.39+
+    
+    Running meson without this patch fails with:
+    
+    > Meson encountered an error in file src/dleyna/meson.build, line 38,
+    > column 0: Tried to form an absolute path to a source dir. You should
+    > not do that but use relative paths instead.
+    >
+    > To get include path to any directory relative to the current dir do
+    
+    > incdir = include_directories(dirname)
+
+ meson.build            | 2 ++
+ src/dleyna/meson.build | 4 +---
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+commit 380aaf699eaa5a6f5debb361682e133336464df3
+Author: Chao-Hsiung Liao <j_h_liau@yahoo.com.tw>
+Date:   Tue Feb 28 06:37:43 2017 +0000
+
+    Update Chinese (Taiwan) translation
+
+ po/zh_TW.po | 266 ++++++++++++++++++++++++++++++------------------------------
+ 1 file changed, 135 insertions(+), 131 deletions(-)
+
+commit 3c61220469dbeb9b40d0a9866bf5aa8444b271f6
+Author: Jan Alexander Steffens (heftig) <jan.steffens@gmail.com>
+Date:   Tue Feb 21 17:57:28 2017 +0100
+
+    lua-factory: Sanitize code generation
+    
+    Now that gperf is required to build this plugin, the generated
+    htmlentity.c should be removed from the source. Otherwise, it
+    will be used iff builddir == srcdir.
+    
+    Add some further adjustments to make sure out-of-tree builds don't
+    break.
+    
+    gperf 3.1 changes the type of the len argument for the generated
+    function to size_t, causing a conflict. Replace the prototype with
+    pragmas to make GCC ignore -Werror=missing-prototypes.
+    
+    Tested with "make distcheck" and meson, with gcc and clang.
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=778857
+
+ src/lua-factory/Makefile.am                  |  11 +-
+ src/lua-factory/lua-library/htmlentity.c     | 876 ---------------------------
+ src/lua-factory/lua-library/htmlentity.gperf |  14 +-
+ src/lua-factory/meson.build                  |  10 +-
+ 4 files changed, 20 insertions(+), 891 deletions(-)
+
+commit 90b3f9f3e0f4ec40fe39d6095d913ba30892dd64
+Author: Jan Alexander Steffens (heftig) <jan.steffens@gmail.com>
+Date:   Sun Feb 19 10:46:16 2017 +0100
+
+    build: Fix library name of optical-media plugin
+    
+    https://bugzilla.gnome.org/show_bug.cgi?id=778858
+
+ src/optical-media/Makefile.am | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+commit 8fa25828f89da5ee8fe40824656179369463ab35
+Author: Kjartan Maraas <kmaraas@gnome.org>
+Date:   Sat Feb 18 11:52:42 2017 +0100
+
+    Updated Norwegian bokmål translation.
+
+ po/nb.po | 23 ++++++++++++-----------
+ 1 file changed, 12 insertions(+), 11 deletions(-)
+
+commit c3ee50c23981ea0debfc6ee60ce23d5dc4ecd2e2
+Author: Juan A. Suarez Romero <jasuarez@igalia.com>
+Date:   Wed Feb 15 18:04:07 2017 +0100
+
+    meson: remove "-Wl,--no-undefined" from link args
+    
+    Meson already adds this by default.
+
+ src/bookmarks/meson.build      | 3 ---
+ src/chromaprint/meson.build    | 3 ---
+ src/dleyna/meson.build         | 3 ---
+ src/dmap/meson.build           | 6 ------
+ src/filesystem/meson.build     | 3 ---
+ src/flickr/meson.build         | 3 ---
+ src/freebox/meson.build        | 3 ---
+ src/gravatar/meson.build       | 3 ---
+ src/jamendo/meson.build        | 3 ---
+ src/local-metadata/meson.build | 3 ---
+ src/lua-factory/meson.build    | 3 ---
+ src/magnatune/meson.build      | 3 ---
+ src/metadata-store/meson.build | 3 ---
+ src/opensubtitles/meson.build  | 3 ---
+ src/optical-media/meson.build  | 3 ---
+ src/podcasts/meson.build       | 3 ---
+ src/raitv/meson.build          | 3 ---
+ src/shoutcast/meson.build      | 3 ---
+ src/thetvdb/meson.build        | 3 ---
+ src/tmdb/meson.build           | 3 ---
+ src/tracker/meson.build        | 3 ---
+ src/vimeo/meson.build          | 3 ---
+ src/youtube/meson.build        | 3 ---
+ 23 files changed, 72 deletions(-)
+
+commit 34ff054ec58cf8c1f33f8689b508897dc6d0c0fb
+Author: Victor Toso <me@victortoso.com>
+Date:   Tue Feb 14 15:30:19 2017 +0100
+
+    Post-release version bump to 0.3.5
+
+ configure.ac | 2 +-
+ meson.build  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+commit 37811929314abfe14e132a206980acd3e5bba36d
 Author: Victor Toso <me@victortoso.com>
 Date:   Tue Feb 14 14:49:23 2017 +0100
 

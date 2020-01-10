@@ -71,6 +71,7 @@ build_table_recursively (lua_State  *L,
     guint len = g_list_length (it);
     guint i;
     xmlNodePtr node;
+    GList *list = it;
 
     if (len == 1) {
       /* Only one node, no array needed */
@@ -85,16 +86,15 @@ build_table_recursively (lua_State  *L,
       lua_createtable (L, len, 0);
       for (i = 0; i < len; i++) {
         node = it->data;
-        node = (is_root_node) ? node : node->children;
         lua_pushinteger (L, i + 1);
         lua_newtable (L);
-        build_table_from_xml_reader (L, doc, it->data);
+        build_table_from_xml_reader (L, doc, node);
         lua_settable(L, -3);
         it = it->next;
       }
     }
     lua_settable(L, -3);
-    g_list_free (value);
+    g_list_free (list);
   }
   g_hash_table_destroy (ht);
 }

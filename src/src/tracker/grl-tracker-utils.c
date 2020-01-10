@@ -454,7 +454,7 @@ grl_tracker_source_get_select_string (const GList *keys)
 
   assoc_list = get_mapping_from_grl (grl_metadata_key_tracker_urn);
   assoc = (tracker_grl_sparql_t *) assoc_list->data;
-  g_string_append_printf (gstr, "%s AS %s ",
+  g_string_append_printf (gstr, "%s AS ?%s ",
                           assoc->sparql_key_attr_call,
                           assoc->sparql_key_name);
 
@@ -463,7 +463,7 @@ grl_tracker_source_get_select_string (const GList *keys)
     while (assoc_list != NULL) {
       assoc = (tracker_grl_sparql_t *) assoc_list->data;
       if (assoc != NULL) {
-        g_string_append_printf (gstr, "%s AS %s ",
+        g_string_append_printf (gstr, "%s AS ?%s ",
                                 assoc->sparql_key_attr_call,
                                 assoc->sparql_key_name);
       }
@@ -735,7 +735,7 @@ get_tracker_volume_name (const gchar *uri,
       if (g_file_equal (m_file, file)) {
         gchar *m_name = g_mount_get_name (G_MOUNT (mount->data));
         g_object_unref (G_OBJECT (m_file));
-        source_name = g_strdup_printf (_("Removable - %s"), m_name);
+        source_name = g_strdup_printf (_("Removable — %s"), m_name);
         g_free (m_name);
         break;
       }
@@ -756,7 +756,7 @@ get_tracker_volume_name (const gchar *uri,
 static gchar *
 get_tracker_upnp_name (const gchar *datasource_name)
 {
-  return g_strdup_printf ("UPnP - %s", datasource_name);
+  return g_strdup_printf ("UPnP — %s", datasource_name);
 }
 
 gchar *

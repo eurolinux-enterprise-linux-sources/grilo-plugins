@@ -26,7 +26,7 @@ source = {
   id = "grl-thegamesdb",
   name = "TheGamesDB.net",
   description = "TheGamesDB.net",
-  supported_keys = { "description", "thumbnail", "external-url", "rating", "publication-date", "genre" },
+  supported_keys = { "description", "thumbnail", "external-url", "rating", "publication-date", "genre", "developer", "publisher", "coop", "players"},
   resolve_keys = {
     ["type"] = "none",
     required = { "title" },
@@ -42,7 +42,7 @@ netopts = {
 -- Source utils --
 ------------------
 
-THEGAMESDB_BASE_API_URL = "http://thegamesdb.net/api/"
+THEGAMESDB_BASE_API_URL = "http://legacy.thegamesdb.net/api/"
 
 ---------------------------------
 -- Handlers of Grilo functions --
@@ -83,6 +83,10 @@ function get_id(results, title)
      not results_table.Data or
      not results_table.Data.Game then
     return nil
+  end
+  -- If there's only a single match, just return it
+  if results_table.Data.Game.id then
+    return results_table.Data.Game.id.xml
   end
   for index, game in pairs(results_table.Data.Game) do
     if game.GameTitle and
@@ -161,8 +165,12 @@ function fetch_game_cb(results)
 
     if game.Genres then
       media.genre = {}
-      for index, genre in pairs(game.Genres) do
-        table.insert(media.genre, genre.xml)
+      if game.Genres.genre.xml then
+        table.insert(media.genre, game.Genres.genre.xml)
+      else
+        for _, genre in pairs(game.Genres.genre) do
+          table.insert(media.genre, genre.xml)
+        end
       end
     end
 
@@ -172,20 +180,20 @@ function fetch_game_cb(results)
     end
 
     if game.Developer then
-      -- FIXME media.developer = game.Developer.xml
+      media.developer = game.Developer.xml
     end
 
     if game.Publisher then
-      -- FIXME media.publisher = game.Publisher.xml
+      media.publisher = game.Publisher.xml
     end
 
     if game.Players then
-      -- FIXME media.players = tonumber(game.Players.xml)
+      media.players = tostring(game.Players.xml)
     end
 
     if game['Co-op'] then
       if game['Co-op'].xml == 'Yes' then
-        -- FIXME media.coop = true
+        media.coop = true
       end
     end
 
@@ -205,7 +213,9 @@ function get_platform_name(mime_type, suffix)
     platform_names['application/x-atari-2600-rom'] = 'Atari 2600'
     platform_names['application/x-atari-5200-rom'] = 'Atari 5200'
     platform_names['application/x-atari-7800-rom'] = 'Atari 7800'
+    platform_names['application/x-atari-lynx-rom'] = 'Atari Lynx'
     platform_names['application/x-dc-rom'] = 'Sega Dreamcast'
+    platform_names['application/x-fds-disk'] = 'Famicom Disk System'
     platform_names['application/x-gameboy-rom'] = 'Nintendo Game Boy'
     platform_names['application/x-gameboy-color-rom'] = 'Nintendo Game Boy Color'
     platform_names['application/x-gamecube-rom'] = 'Nintendo GameCube'
@@ -214,17 +224,26 @@ function get_platform_name(mime_type, suffix)
     platform_names['application/x-genesis-32x-rom'] = 'Sega 32X'
     platform_names['application/x-n64-rom'] = 'Nintendo 64'
     platform_names['application/x-neo-geo-pocket-rom'] = 'Neo Geo Pocket'
+    platform_names['application/x-neo-geo-pocket-color-rom'] = 'Neo Geo Pocket Color'
     platform_names['application/x-nes-rom'] = 'Nintendo Entertainment System (NES)'
     platform_names['application/x-nintendo-ds-rom'] = 'Nintendo DS'
     platform_names['application/x-pc-engine-rom'] = 'TurboGrafx 16'
-    -- 'application/x-playstation-rom' is an unregistered MIME type
-    platform_names['application/x-playstation-rom'] = 'Sony Playstation'
     platform_names['application/x-saturn-rom'] = 'Sega Saturn'
     platform_names['application/x-sega-cd-rom'] = 'Sega CD'
-    -- Also represents 'Sega Game Gear'
+    -- Also represents 'Sega Game Gear' through magic
     platform_names['application/x-sms-rom'] = 'Sega Master System'
+    platform_names['application/x-gamegear-rom'] = 'Sega Game Gear'
+    platform_names['application/x-virtual-boy-rom'] = 'Nintendo Virtual Boy'
     platform_names['application/x-wii-rom'] = 'Nintendo Wii'
     platform_names['application/x-wii-wad'] = 'Nintendo Wii'
+    platform_names['application/x-wonderswan-rom'] = 'WonderSwan'
+    platform_names['application/x-wonderswan-color-rom'] = 'WonderSwan Color'
+
+    -- CD image file types that can't be identified via magic, but
+    -- should still be differentiated. Usually they are represented
+    -- via application/octet-stream + application/x-cue combination
+    platform_names['application/x-pc-engine-cd-rom'] = 'TurboGrafx CD'
+    platform_names['application/x-playstation-rom'] = 'Sony Playstation'
 
     -- For disambiguation
     if suffix and

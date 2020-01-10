@@ -32,6 +32,8 @@
 #include <glib/gi18n-lib.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <math.h>
 
 #ifdef GOA_ENABLED
 #define GOA_API_IS_SUBJECT_TO_CHANGE
@@ -40,11 +42,6 @@
 
 #include "grl-flickr.h"
 #include "gflickr.h"
-
-#define GRL_FLICKR_SOURCE_GET_PRIVATE(object)                          \
-  (G_TYPE_INSTANCE_GET_PRIVATE((object),                               \
-                               GRL_FLICKR_SOURCE_TYPE,                 \
-                               GrlFlickrSourcePrivate))
 
 /* --------- Logging  -------- */
 
@@ -62,9 +59,9 @@ GRL_LOG_DOMAIN(flickr_log_domain);
 
 #define PERSONAL_SOURCE_ID "grl-flickr-%s"
 /* "%s" is a full user name, like "John Doe" */
-#define PERSONAL_SOURCE_NAME _("%s's Flickr")
+#define PERSONAL_SOURCE_NAME _("%s’s Flickr")
 /* "%s" is a full user name, like "John Doe" */
-#define PERSONAL_SOURCE_DESC _("A source for browsing and searching %s's flickr photos")
+#define PERSONAL_SOURCE_DESC _("A source for browsing and searching %s’s flickr photos")
 
 typedef struct {
   GrlSource *source;
@@ -261,7 +258,7 @@ GRL_PLUGIN_DEFINE (GRL_MAJOR,
 
 /* ================== Flickr GObject ================ */
 
-G_DEFINE_TYPE (GrlFlickrSource, grl_flickr_source, GRL_TYPE_SOURCE);
+G_DEFINE_TYPE_WITH_PRIVATE (GrlFlickrSource, grl_flickr_source, GRL_TYPE_SOURCE)
 
 static GrlFlickrSource *
 grl_flickr_source_public_new (const gchar *flickr_api_key,
@@ -339,14 +336,12 @@ grl_flickr_source_class_init (GrlFlickrSourceClass * klass)
   source_class->browse = grl_flickr_source_browse;
   source_class->resolve = grl_flickr_source_resolve;
   source_class->search = grl_flickr_source_search;
-
-  g_type_class_add_private (klass, sizeof (GrlFlickrSourcePrivate));
 }
 
 static void
 grl_flickr_source_init (GrlFlickrSource *source)
 {
-  source->priv = GRL_FLICKR_SOURCE_GET_PRIVATE (source);
+  source->priv = grl_flickr_source_get_instance_private (source);
 
   grl_source_set_auto_split_threshold (GRL_SOURCE (source), SEARCH_MAX);
 }
@@ -546,15 +541,110 @@ update_media (GrlMedia *media, GHashTable *photo)
 }
 
 static void
+update_media_exif (GrlMedia *media, GHashTable *photo)
+{
+  GHashTableIter iter;
+  gpointer key, value;
+
+  g_hash_table_iter_init (&iter, photo);
+  while (g_hash_table_iter_next (&iter, &key, &value)) {
+    GrlRelatedKeys *relkeys = NULL;
+
+    /*
+     * EXIF tags from: http://www.exif.org/Exif2-2.PDF
+     * and values from:
+     * http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
+     */
+    if (g_strcmp0 (key, "Model") == 0) {
+      relkeys = grl_related_keys_new_with_keys (GRL_METADATA_KEY_CAMERA_MODEL,
+                                                value,
+                                                NULL);
+    } else if (g_strcmp0 (key, "Flash") == 0) {
+      gboolean used = g_str_has_prefix (value, "Fired") ||
+                      g_str_has_prefix (value, "On,") ||
+                      g_str_has_prefix (value, "Auto, Fired");
+
+      relkeys = grl_related_keys_new_with_keys (GRL_METADATA_KEY_FLASH_USED,
+                                                used,
+                                                NULL);
+    } else if (g_strcmp0 (key, "ExposureTime") == 0) {
+      /* ExposureTime is in the format "%d/%d" seconds */
+      gchar *endptr;
+      guint64 num, denom;
+
+      errno = 0;
+      num = g_ascii_strtoull (value, &endptr, 10);
+      if (errno == ERANGE && (num == G_MAXINT64 || num == G_MININT64))
+        continue;
+
+      if (endptr == value || *endptr != '/' || *(endptr +1) == '\0')
+        continue;
+
+      errno = 0;
+      denom = g_ascii_strtoull (endptr + 1, NULL, 10);
+      if ((errno == ERANGE && (denom == G_MAXINT64 || denom == G_MININT64)) ||
+          (errno != 0 && denom == 0))
+        continue;
+
+      relkeys = grl_related_keys_new_with_keys (GRL_METADATA_KEY_EXPOSURE_TIME,
+                                                num / (gdouble) denom,
+                                                NULL);
+    } else if (g_strcmp0 (key, "ISO") == 0) {
+      gdouble iso;
+
+      errno = 0;
+      iso = g_ascii_strtod (value, NULL);
+      if (errno != ERANGE && (fabs (iso) != HUGE_VAL))
+        relkeys = grl_related_keys_new_with_keys (GRL_METADATA_KEY_ISO_SPEED,
+                                                  iso,
+                                                  NULL);
+    } else if (g_strcmp0 (key, "Orientation") == 0) {
+      gint degrees;
+
+      if (g_str_match_string ("rotate 90 cw", value, FALSE))
+        degrees = 90;
+      else if (g_str_match_string ("rotate 180", value, FALSE))
+        degrees = 180;
+      else if (g_str_match_string ("rotate 270 cw", value, FALSE))
+        degrees = 270;
+      else
+        degrees = 0;
+
+      relkeys = grl_related_keys_new_with_keys (GRL_METADATA_KEY_ORIENTATION,
+                                                degrees,
+                                                NULL);
+    }
+
+    if (relkeys)
+      grl_data_add_related_keys (GRL_DATA (media), relkeys);
+  }
+}
+
+static void
+getExif_cb (GFlickr *f, GHashTable *photo, gpointer user_data)
+{
+  GrlSourceResolveSpec *rs = (GrlSourceResolveSpec *) user_data;
+
+  if (photo)
+    update_media_exif (rs->media, photo);
+
+  rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
+}
+
+static void
 getInfo_cb (GFlickr *f, GHashTable *photo, gpointer user_data)
 {
   GrlSourceResolveSpec *rs = (GrlSourceResolveSpec *) user_data;
 
-  if (photo) {
-    update_media (rs->media, photo);
-  }
+  if (!photo)
+    rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
 
-  rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
+  update_media (rs->media, photo);
+
+  g_flickr_photos_getExif (f,
+                           grl_media_get_id (rs->media),
+                           getExif_cb,
+                           rs);
 }
 
 static void

@@ -11,29 +11,32 @@ Guillaume Emont <guijemont@igalia.com>
 Piotr Drąg <piotrdrag@gmail.com>
 Guillaume Emont <gemont@igalia.com>
 Murray Cumming <murrayc@murrayc.com>
+Matej Urbančič <mateju@svn.gnome.org>
 George Sedov <radist.morse@gmail.com>
 Mathias Hasselmann <mathias@openismus.com>
 Marek Černocký <marek@manet.cz>
-Matej Urbančič <mateju@svn.gnome.org>
 Philip Withnall <philip.withnall@collabora.co.uk>
 Aurimas Černius <aurisc4@gmail.com>
 Yosef Or Boczko <yoseforb@src.gnome.org>
 W. Michael Petullo <mike@flyn.org>
+Alexander Mikhaylenko <exalm7659@gmail.com>
 Xabier Rodriguez Calvar <xrcalvar@igalia.com>
+Kjartan Maraas <kmaraas@gnome.org>
 Fran Dieguez <fran.dieguez@mabishu.com>
 Мирослав Николић <miroslavnikolic@rocketmail.com>
-Kjartan Maraas <kmaraas@gnome.org>
 Andika Triwidada <andika@gmail.com>
 Yuri Myasoedov <ymyasoedov@yandex.ru>
+Rafael Fonseca <r4f4rfs@gmail.com>
+Chao-Hsiung Liao <j_h_liau@yahoo.com.tw>
 Miguel Rodríguez Núñez <bokerones.fritos@gmail.com>
+Ask Hjorth Larsen <asklarsen@gmail.com>
 Rafael Ferreira <rafael.f.f1@gmail.com>
 Dušan Kazik <prescott66@gmail.com>
 Philip Withnall <philip@tecnocode.co.uk>
 Murray Cumming <murrayc@openismus.com>
-Chao-Hsiung Liao <j_h_liau@yahoo.com.tw>
 Elad Alfassa <elad@fedoraproject.org>
-Ask Hjorth Larsen <asklarsen@gmail.com>
 Xavier Claessens <xavier.claessens@collabora.com>
+1PunMan <saurabhsingh412@gmail.com>
 Adrien Plazas <kekun.plazas@laposte.net>
 Fabio Tomat <f.t.public@gmail.com>
 Inaki Larranaga Murgoitio <dooteo@zundan.com>
@@ -46,19 +49,23 @@ Marinus Schraal <mschraal@scr.gnome.org>
 Marek Chalupa <mchalupa@redhat.com>
 Enrico Nicoletto <liverig@gmail.com>
 Damien Lespiau <damien.lespiau@intel.com>
+Carlos Garnacho <carlosg@gnome.org>
+Anders Jonsson <anders.jonsson@norsjovallen.se>
 Balázs Úr <urbalazs@gmail.com>
 Simón Pena <spenap@gmail.com>
 Simon McVittie <simon.mcvittie@collabora.co.uk>
 Pedro Albuquerque <palbuquerque73@gmail.com>
 Jens Georg <jensg@openismus.com>
+Jan Alexander Steffens (heftig) <jan.steffens@gmail.com>
 Gil Forcada <gforcada@gnome.org>
 fosero <fosero@users.noreply.github.com>
 Emanuele Aina <emanuele.aina@collabora.com>
 Claudio Arseni <claudio.arseni@gmail.com>
 Chris Lord <chris@linux.intel.com>
-Anders Jonsson <anders.jonsson@norsjovallen.se>
 Michael Wood <michael.g.wood@linux.intel.com>
 Jeremy Whiting <jpwhiting@kde.org>
+Jordi Mas <jmas@softcatala.org>
+Jean Felder <jfelder@src.gnome.org>
 Fabien Lebaillif - Delamare <fabien@developers.arq-media.com>
 Daniel Mustieles <dnaiel.mustieles@gmail.com>
 Dimitris Spingos <dmtrs32@gmail.com>
@@ -71,6 +78,7 @@ Tim Lunn <tim@feathertop.org>
 Saiful B. Khan <saifulbkhan@gmail.com>
 Nilamdyuti Goswami <ngoswami@redhat.com>
 Marco Piazza <mpiazza@gmail.com>
+Milo Casagrande <milo@ubuntu.com>
 Martin Srebotnjak <miles@filmsi.net>
 Balázs Meskó <meskobalazs@gmail.com>
 Gábor Kelemen <kelemeng@openscope.org>
@@ -81,14 +89,18 @@ Gianvito Cavasoli <gianvito@gmx.it>
 Evgeny Bobkin <evgen.ibqn@gmail.com>
 Debarshi Ray <debarshir@gnome.org>
 Seong-ho Cho <darkcircle.0426@gmail.com>
+Daniel Șerbănescu <daniel@serbanescu.dk>
 Claudio Arseni <claudio.arseni@ubuntu.com>
-Carlos Garnacho <carlosg@gnome.org>
+Christophe Fergeau <cfergeau@redhat.com>
 Carles Ferrando <carles.ferrando@gmail.com>
+veer <bveer428@gmail.com>
 YunQiang Su <yqsu@src.gnome.org>
 Yanko Kaneti <yaneti@declera.com>
+Xavi Ivars <xavi.ivars@gmail.com>
 Wylmer Wang <wantinghard@gmail.com>
 Colin Walters <walters@verbum.org>
-Vadim Rutkovsky <vrutkovs@redhat.com>
+gogo <trebelnik2@gmail.com>
+Tim Sabsch <tim@sabsch.com>
 Tiago Santos <tiagofsantos81@sapo.pt>
 Daniel Korostil <ted.korostiled@gmail.com>
 Mattias Eriksson <snaggen@gmail.com>
@@ -98,6 +110,7 @@ Samir Ribic <samir.ribic@etf.unsa.ba>
 Ross Burton <ross@linux.intel.com>
 甘露(Gan Lu) <rhythm.gan@gmail.com>
 Rafael Fontenelle <rffontenelle@gmail.com>
+Cheng-Chia Tseng <pswo10680@gmail.com>
 Paul Seyfert <pseyfert@mathphys.fsk.uni-heidelberg.de>
 Fernando Carvalho <phaetonkde@gmail.com>
 Olav Vitters <olav@vitters.nl>
@@ -105,7 +118,8 @@ Nuno Araujo <nuno.araujo@russo79.com>
 Necdet Yücel <necdetyucel@gmail.com>
 naybnet <naybnet@gmail.com>
 Muhammet Kara <muhammetk@gmail.com>
-Milo Casagrande <milo@ubuntu.com>
+Balázs Meskó <meskobalazs@fedoraproject.org>
+Michael Catanzaro <mcatanzaro@igalia.com>
 MarMav <mavridou@gmail.com>
 Mario Blättermann <mario.blaettermann@gmail.com>
 marablack3 <marablack3@gmail.com>
@@ -113,9 +127,9 @@ liushuyu <liushuyu_011@126.com>
 Ting-Wei Lan <lantw@src.gnome.org>
 Kristjan SCHMIDT <kristjan.schmidt@googlemail.com>
 Kenneth Nielsen <k.nielsen81@gmail.com>
+Justin van Steijn <jvs@fsfe.org>
 Juan R. Garcia Blanco <juanrgar@gmail.com>
 Jonny Lamb <jonnylamb@gnome.org>
-Jordi Mas <jmas@softcatala.org>
 Jasper Lievisse Adriaanse <jasper@humppa.nl>
 Efstathios Iosifidis <iefstathios@gmail.com>
 Iain Lane <iain@orangesquash.org.uk>
@@ -124,13 +138,20 @@ Guilhem Bonnefille <guilhem.bonnefille@gmail.com>
 Iris Gou <gouyingqiyanxuan321@gmail.com>
 Giovanni Campagna <gcampagn@cs.stanford.edu>
 Nishio Futoshi <fut_nis@d3.dion.ne.jp>
+Felipe Borges <felipeborges@gnome.org>
 Evan Nemerson <evan@coeus-group.com>
+Emin Tufan Çetin <etcetin@gmail.com>
 Enrique Ocaña González <eocanha@igalia.com>
+Emmanuele Bassi <ebassi@gnome.org>
+Daniel Mustieles <daniel.mustieles.contractor@bbva.com>
+Claude Paroz <claude@2xlibre.net>
 Christian Kirbach <Christian.Kirbach@googlemail.com>
 Christian Kirbach <christian.kirbach@gmail.com>
+Pawan Chitrakar <chautari@gmail.com>
 Wolfgang Stöggl <c72578@yahoo.de>
 Ben Walsh <b@wumpster.com>
 Benjamin Steinwender <b@stbe.at>
+Bruno Lopes da Silva <brunolopesbldsb@gmail.com>
 Baptiste Mille-Mathias <baptiste.millemathias@gmail.com>
 Andika Triwidada <atriwidada@gnome.org>
 Alexander Shopov <ash@kambanaria.org>
@@ -144,12 +165,12 @@ Past contributors:
 ==================
 Jussi Kukkonen <jku@linux.intel.com>
 Mohammed Hassan <mohammed.hassan@jollamobile.com>
-Jan Alexander Steffens (heftig) <jan.steffens@gmail.com>
 iain <iain@linux.intel.com>
 Giovanni Campagna <gcampagna@src.gnome.org>
 Dominique Leuenberger <dimstar@opensuse.org>
 Zeeshan Ali (Khattak) <zeeshanak@gnome.org>
 Vincent Untz <vuntz@gnome.org>
+Vadim Rutkovsky <vrutkovs@redhat.com>
 Philippe Normand <pnormand@igalia.com>
 Philippe Normand <phil@base-art.net>
 Olivier Crête <olivier.crete@collabora.com>

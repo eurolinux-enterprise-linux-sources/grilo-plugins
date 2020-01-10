@@ -515,16 +515,14 @@ grl_lua_factory_source_class_init (GrlLuaFactorySourceClass *klass)
   source_class->resolve = grl_lua_factory_source_resolve;
   source_class->may_resolve = grl_lua_factory_source_may_resolve;
   source_class->cancel = grl_lua_factory_source_cancel;
-
-  g_type_class_add_private (klass, sizeof (GrlLuaFactorySourcePrivate));
 }
 
-G_DEFINE_TYPE (GrlLuaFactorySource, grl_lua_factory_source, GRL_TYPE_SOURCE);
+G_DEFINE_TYPE_WITH_PRIVATE (GrlLuaFactorySource, grl_lua_factory_source, GRL_TYPE_SOURCE)
 
 static void
 grl_lua_factory_source_init (GrlLuaFactorySource *source)
 {
-  source->priv = GRL_LUA_FACTORY_SOURCE_GET_PRIVATE (source);
+  source->priv = grl_lua_factory_source_get_instance_private (source);
 }
 
 static void
@@ -559,7 +557,7 @@ lua_plugin_source_init (GrlLuaFactorySource *lua_source)
   GList *it_keys = NULL;
   GList *list_keys = NULL;
   const gchar *key = NULL;
-  const gchar *value = NULL;
+  gchar *value = NULL;
   gboolean ret = FALSE;
 
   /* Source does not have grl_source_init() */
@@ -600,6 +598,7 @@ lua_plugin_source_init (GrlLuaFactorySource *lua_source)
 
           g_free (lua_key);
         }
+        g_free (value);
       }
     }
     g_list_free (list_keys);
@@ -918,7 +917,7 @@ keys_table_array_to_list (lua_State *L,
 static gboolean
 validate_account_feature (const char *lua_account_feature)
 {
-  const char const *features[] = {
+  const char * const features[] = {
     "photos",
     "read-later",
     "music",
@@ -1049,7 +1048,7 @@ get_lua_sources (void)
     gchar **local_dirs;
 
     /* Environment-only plugins */
-    GRL_DEBUG ("'%s' is set - Getting lua-sources only from there.", ENV_LUA_SOURCES_PATH);
+    GRL_DEBUG ("Envvar '%s' is set - Only getting lua-sources from there.", ENV_LUA_SOURCES_PATH);
     local_dirs = g_strsplit (envvar, G_SEARCHPATH_SEPARATOR_S, -1);
     if (local_dirs) {
       while (local_dirs[i] != NULL) {
@@ -1083,9 +1082,14 @@ get_lua_sources (void)
   ht = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
   for (it_path = l_locations; it_path; it_path = it_path->next) {
-    dir = g_dir_open (it_path->data, 0, NULL);
-    if (dir == NULL)
+    const char *path = it_path->data;;
+    dir = g_dir_open (path, 0, NULL);
+    if (dir == NULL) {
+      GRL_DEBUG ("Skipping lua source directory '%s'", path);
       continue;
+    }
+
+    GRL_DEBUG ("Opening lua source directory '%s'", path);
 
     for (it_file = g_dir_read_name (dir);
          it_file;
@@ -1126,17 +1130,21 @@ all_mandatory_options_has_value (const gchar *source_id,
   list_keys = (source_configs != NULL) ?
               g_hash_table_get_keys (source_configs) : NULL;
   for (it_keys = list_keys; it_keys; it_keys = g_list_next (it_keys)) {
+    gchar *key_value;
+
     key = it_keys->data;
     is_mandatory = g_hash_table_lookup (source_configs, key);
 
+    key_value = grl_config_get_string (merged_configs, key);
     if (g_strcmp0 (is_mandatory, "true") == 0
-        && grl_config_get_string (merged_configs, key) == NULL) {
+        && key_value == NULL) {
 
       GRL_DEBUG ("Source %s is missing config for required key '%s'", source_id, key);
 
       g_list_free (list_keys);
       return FALSE;
     }
+    g_free (key_value);
   }
   g_list_free (list_keys);
   return TRUE;

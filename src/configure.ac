@@ -8,7 +8,7 @@
 m4_define([prj_name],          [grilo-plugins])
 m4_define([grl_major_version], [0])
 m4_define([grl_minor_version], [3])
-m4_define([grl_micro_version], [4])
+m4_define([grl_micro_version], [7])
 m4_define([prj_version],       [grl_major_version.grl_minor_version.grl_micro_version])
 
 AC_INIT([prj_name],
@@ -90,10 +90,13 @@ fi
 # HARD DEPENDENCIES
 # ----------------------------------------------------------
 
-PKG_CHECK_MODULES([DEPS], glib-2.0 >= 2.44      \
-			  gobject-2.0   \
-			  gmodule-2.0   \
-			  ${GRL_NAME} >= 0.3.1)
+GLIB2_REQUIRED=2.44
+GRILO_REQUIRED=0.3.6
+
+PKG_CHECK_MODULES([DEPS], glib-2.0 >= $GLIB2_REQUIRED \
+                          gobject-2.0 >= $GLIB2_REQUIRED \
+                          gmodule-2.0 >= $GLIB2_REQUIRED \
+                          ${GRL_NAME} >= $GRILO_REQUIRED)
 
 GLIB_COMPILE_RESOURCES=`$PKG_CONFIG --variable glib_compile_resources gio-2.0`
 AC_SUBST(GLIB_COMPILE_RESOURCES)
@@ -164,11 +167,7 @@ fi
 
 PKG_CHECK_MODULES([JSON], [json-glib-1.0], HAVE_JSON_GLIB=yes, HAVE_JSON_GLIB=no)
 
-PKG_CHECK_MODULES(GMIME, gmime-2.6,
-                         HAVE_GMIME=yes,
-                         [PKG_CHECK_MODULES(GMIME, gmime-2.4,
-                                                   HAVE_GMIME=yes,
-                                                   HAVE_GMIME=no)])
+PKG_CHECK_MODULES(GMIME, [gmime-3.0], HAVE_GMIME=yes, HAVE_GMIME=no)
 
 PKG_CHECK_MODULES(AVAHI, [avahi-gobject avahi-glib avahi-client], HAVE_AVAHI=yes, HAVE_AVAHI=no)
 
@@ -178,7 +177,7 @@ PKG_CHECK_MODULES(GOM, [gom-1.0 >= 0.3.2], HAVE_GOM=yes, HAVE_GOM=no)
 
 # Search available Tracker version
 trackerpkg="tracker-sparql-0.10"
-m4_foreach([VERSION], [[0.10], [0.11], [0.12], [0.14], [0.15], [0.16], [0.17], [0.18], [1.0]],
+m4_foreach([VERSION], [[0.10], [0.11], [0.12], [0.14], [0.15], [0.16], [0.17], [0.18], [1.0], [2.0]],
                       [PKG_CHECK_EXISTS([tracker-sparql-VERSION >= 0.10.5],
                                         [ trackerpkg="tracker-sparql-VERSION" ])
                       ])
@@ -490,7 +489,7 @@ AC_ARG_ENABLE(podcasts,
                            AC_MSG_ERROR([sqlite3 not found, install it or use --disable-podcasts])
                         fi
                         if test "x$HAVE_GMIME" = "xno"; then
-                           AC_MSG_ERROR([gmime-2.4 or gmime-2.6 not found, install it or use --disable-podcasts])
+                           AC_MSG_ERROR([gmime-3.0 not found, install it or use --disable-podcasts])
                         fi
                         ;;
                 esac
