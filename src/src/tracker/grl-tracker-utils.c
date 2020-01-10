@@ -28,6 +28,7 @@
 #endif
 
 #include "grl-tracker-utils.h"
+#include <glib/gi18n-lib.h>
 
 /**/
 
@@ -35,6 +36,7 @@ static GHashTable *grl_to_sparql_mapping = NULL;
 static GHashTable *sparql_to_grl_mapping = NULL;
 
 GrlKeyID grl_metadata_key_tracker_urn;
+GrlKeyID grl_metadata_key_gibest_hash;
 
 
 /**/
@@ -89,6 +91,45 @@ set_date (TrackerSparqlCursor *cursor,
   }
 }
 
+static void
+set_favourite (TrackerSparqlCursor *cursor,
+               gint                 column,
+               GrlMedia            *media,
+               GrlKeyID             key)
+{
+  const gchar *str = tracker_sparql_cursor_get_string (cursor, column, NULL);
+  gboolean is_favourite = FALSE;
+
+  if (str != NULL && g_str_has_suffix (str, "predefined-tag-favorite"))
+    is_favourite = TRUE;
+
+  grl_data_set_boolean (GRL_DATA (media), key, is_favourite);
+}
+
+static void
+set_title_from_filename (TrackerSparqlCursor *cursor,
+                         gint                 column,
+                         GrlMedia            *media,
+                         GrlKeyID             key)
+{
+  const gchar *str = tracker_sparql_cursor_get_string (cursor, column, NULL);
+  if (key == GRL_METADATA_KEY_TITLE) {
+    grl_data_set_boolean (GRL_DATA (media), GRL_METADATA_KEY_TITLE_FROM_FILENAME, TRUE);
+    grl_media_set_title (media, str);
+  }
+}
+
+static void
+set_title (TrackerSparqlCursor *cursor,
+           gint                 column,
+           GrlMedia            *media,
+           GrlKeyID             key)
+{
+  const gchar *str = tracker_sparql_cursor_get_string (cursor, column, NULL);
+  grl_data_set_boolean (GRL_DATA (media), GRL_METADATA_KEY_TITLE_FROM_FILENAME, FALSE);
+  grl_media_set_title (media, str);
+}
+
 static tracker_grl_sparql_t *
 insert_key_mapping (GrlKeyID     grl_key,
                     const gchar *sparql_key_attr,
@@ -100,12 +141,13 @@ insert_key_mapping (GrlKeyID     grl_key,
                                            GRLKEYID_TO_POINTER (grl_key));
   gchar *canon_name = g_strdup (GRL_METADATA_KEY_GET_NAME (grl_key));
 
-  assoc->grl_key              = grl_key;
-  assoc->sparql_key_name      = build_flavored_key (canon_name,
-                                                    sparql_key_flavor);
-  assoc->sparql_key_attr      = sparql_key_attr;
-  assoc->sparql_key_attr_call = sparql_key_attr_call;
-  assoc->sparql_key_flavor    = sparql_key_flavor;
+  assoc->grl_key               = grl_key;
+  assoc->sparql_key_name       = build_flavored_key (canon_name,
+                                                     sparql_key_flavor);
+  assoc->sparql_key_name_canon = g_strdup (canon_name);
+  assoc->sparql_key_attr       = sparql_key_attr;
+  assoc->sparql_key_attr_call  = sparql_key_attr_call;
+  assoc->sparql_key_flavor     = sparql_key_flavor;
 
   assoc_list = g_list_append (assoc_list, assoc);
 
@@ -118,6 +160,16 @@ insert_key_mapping (GrlKeyID     grl_key,
   g_hash_table_insert (sparql_to_grl_mapping,
                        (gpointer) GRL_METADATA_KEY_GET_NAME (grl_key),
                        assoc);
+
+  /* Grilo maps key names to SPARQL variables. Key names can contain dashes,
+   * however SPARQL does not allow dashes in variable names. So use the to
+   * underscores converted canon_name as additional mapping.
+   */
+  if (g_strrstr (assoc->sparql_key_name_canon, "_")) {
+    g_hash_table_insert (sparql_to_grl_mapping,
+                         (gpointer) assoc->sparql_key_name_canon,
+                         assoc);
+  }
 
   g_free (canon_name);
 
@@ -148,21 +200,11 @@ grl_tracker_setup_key_mappings (void)
 {
   GrlRegistry *registry = grl_registry_get_default ();
 
-  /* Check if "tracker-urn" is registered; if not, then register it */
   grl_metadata_key_tracker_urn =
     grl_registry_lookup_metadata_key (registry, "tracker-urn");
 
-  if (grl_metadata_key_tracker_urn == GRL_METADATA_KEY_INVALID) {
-    grl_metadata_key_tracker_urn =
-      grl_registry_register_metadata_key (grl_registry_get_default (),
-                                          g_param_spec_string ("tracker-urn",
-                                                               "Tracker URN",
-                                                               "Universal resource number in Tracker's store",
-                                                               NULL,
-                                                               G_PARAM_STATIC_STRINGS |
-                                                               G_PARAM_READWRITE),
-                                          NULL);
-  }
+  grl_metadata_key_gibest_hash =
+    grl_registry_lookup_metadata_key (registry, "gibest-hash");
 
   grl_to_sparql_mapping = g_hash_table_new (g_direct_hash, g_direct_equal);
   sparql_to_grl_mapping = g_hash_table_new (g_str_hash, g_str_equal);
@@ -177,9 +219,19 @@ grl_tracker_setup_key_mappings (void)
                       "nmm:albumTitle(nmm:musicAlbum(?urn))",
                       "audio");
 
+  insert_key_mapping (GRL_METADATA_KEY_ALBUM_DISC_NUMBER,
+                      NULL,
+                      "nmm:setNumber(nmm:musicAlbumDisc(?urn))",
+                      "audio");
+
   insert_key_mapping (GRL_METADATA_KEY_ARTIST,
                       NULL,
                       "nmm:artistName(nmm:performer(?urn))",
+                      "audio");
+
+  insert_key_mapping (GRL_METADATA_KEY_ALBUM_ARTIST,
+                      NULL,
+                      "nmm:artistName(nmm:albumArtist(nmm:musicAlbum(?urn)))",
                       "audio");
 
   insert_key_mapping (GRL_METADATA_KEY_AUTHOR,
@@ -196,6 +248,21 @@ grl_tracker_setup_key_mappings (void)
                       "nfo:entryCounter",
                       "nfo:entryCounter(?urn)",
                       "directory");
+
+  insert_key_mapping (GRL_METADATA_KEY_COMPOSER,
+                      NULL,
+                      "nmm:artistName(nmm:composer(?urn))",
+                      "audio");
+
+  insert_key_mapping (GRL_METADATA_KEY_SIZE,
+                      NULL,
+                      "nfo:fileSize(?urn)",
+                      "file");
+
+  insert_key_mapping (grl_metadata_key_gibest_hash,
+                      NULL,
+                      "(select nfo:hashValue(?h) { ?urn nfo:hasHash ?h . ?h nfo:hashAlgorithm \"gibest\" })",
+                      "video");
 
   insert_key_mapping_with_setter (GRL_METADATA_KEY_MODIFICATION_DATE,
                                   "nfo:fileLastModified",
@@ -223,9 +290,11 @@ grl_tracker_setup_key_mappings (void)
                       "tracker:id(?urn)",
                       "file");
 
-  /* insert_key_mapping (GRL_METADATA_KEY_LAST_PLAYED, */
-  /*                     "nfo:fileLastAccessed(?urn)", */
-  /*                     "file"); */
+  insert_key_mapping_with_setter (GRL_METADATA_KEY_LAST_PLAYED,
+                                  "nfo:fileLastAccessed",
+                                  "nfo:fileLastAccessed(?urn)",
+                                  "file",
+                                  set_date);
 
   insert_key_mapping (GRL_METADATA_KEY_MIME,
                       "nie:mimeType",
@@ -237,15 +306,17 @@ grl_tracker_setup_key_mappings (void)
                       "nie:url(?urn)",
                       "file");
 
-  insert_key_mapping (GRL_METADATA_KEY_TITLE,
-                      "nie:title",
-                      "nie:title(?urn)",
-                      "audio");
+  insert_key_mapping_with_setter (GRL_METADATA_KEY_TITLE,
+                                  "nie:title",
+                                  "nie:title(?urn)",
+                                  "audio",
+                                  set_title);
 
-  insert_key_mapping (GRL_METADATA_KEY_TITLE,
-                      "nfo:fileName",
-                      "nfo:fileName(?urn)",
-                      "file");
+  insert_key_mapping_with_setter (GRL_METADATA_KEY_TITLE,
+                                  "nfo:fileName",
+                                  "nfo:fileName(?urn)",
+                                  "file",
+                                  set_title_from_filename);
 
   insert_key_mapping (GRL_METADATA_KEY_URL,
                       "nie:url",
@@ -304,10 +375,11 @@ grl_tracker_setup_key_mappings (void)
                       "nie:usageCounter(?urn)",
                       "media");
 
-  insert_key_mapping (GRL_METADATA_KEY_LAST_PLAYED,
-                      "nie:contentAccessed",
-                      "nie:contentAccessed(?urn)",
-                      "media");
+  insert_key_mapping_with_setter (GRL_METADATA_KEY_LAST_PLAYED,
+                                  "nie:contentAccessed",
+                                  "nie:contentAccessed(?urn)",
+                                  "media",
+                                  set_date);
 
   insert_key_mapping (GRL_METADATA_KEY_LAST_POSITION,
                       "nfo:lastPlayedPosition",
@@ -325,6 +397,17 @@ grl_tracker_setup_key_mappings (void)
                         "upnp:thumbnail(?urn)",
                         "media");
   }
+
+  insert_key_mapping (GRL_METADATA_KEY_TRACK_NUMBER,
+                      "nmm:trackNumber",
+                      "nmm:trackNumber(?urn)",
+                      "audio");
+
+  insert_key_mapping_with_setter (GRL_METADATA_KEY_FAVOURITE,
+                                  "nao:hasTag",
+                                  "nao:hasTag(?urn)",
+                                  "audio",
+                                  set_favourite);
 }
 
 tracker_grl_sparql_t *
@@ -398,8 +481,9 @@ gen_prop_insert_string (GString *gstr,
                         GrlData *data)
 {
   gchar *tmp;
+  GType type = GRL_METADATA_KEY_GET_TYPE (assoc->grl_key);
 
-  switch (GRL_METADATA_KEY_GET_TYPE (assoc->grl_key)) {
+  switch (type) {
   case G_TYPE_STRING:
     tmp = g_strescape (grl_data_get_string (data, assoc->grl_key), NULL);
     g_string_append_printf (gstr, "%s \"%s\"",
@@ -419,7 +503,26 @@ gen_prop_insert_string (GString *gstr,
                             grl_data_get_float (data, assoc->grl_key));
     break;
 
+  case G_TYPE_BOOLEAN:
+    /* Special case for favourite tag, see comment in
+     * grl_tracker_tracker_get_insert_string for more details.
+     */
+    if (assoc->grl_key == GRL_METADATA_KEY_FAVOURITE) {
+      g_string_append_printf (gstr, "%s nao:predefined-tag-favorite",
+                              assoc->sparql_key_attr);
+    }
+    break;
+
   default:
+    if (type == G_TYPE_DATE_TIME) {
+      tmp = g_date_time_format (grl_data_get_boxed (data, assoc->grl_key),
+                                "%FT%T%:z");
+      g_string_append_printf (gstr, "%s '%s'",
+                              assoc->sparql_key_attr,
+                              tmp);
+
+      g_free (tmp);
+    }
     break;
   }
 }
@@ -428,36 +531,41 @@ gchar *
 grl_tracker_tracker_get_insert_string (GrlMedia *media, const GList *keys)
 {
   gboolean first = TRUE;
-  const GList *key = keys, *assoc_list;
-  tracker_grl_sparql_t *assoc;
+  const GList *key;
   GString *gstr = g_string_new ("");
-  gchar *ret;
 
-  while (key != NULL) {
-    assoc_list = get_mapping_from_grl (GRLPOINTER_TO_KEYID (key->data));
-    while (assoc_list != NULL) {
-      assoc = (tracker_grl_sparql_t *) assoc_list->data;
-      if (assoc != NULL) {
-        if (grl_data_has_key (GRL_DATA (media),
-                              GRLPOINTER_TO_KEYID (key->data))) {
-          if (first) {
-            gen_prop_insert_string (gstr, assoc, GRL_DATA (media));
-            first = FALSE;
-          } else {
-            g_string_append (gstr, " ; ");
-            gen_prop_insert_string (gstr, assoc, GRL_DATA (media));
-          }
-        }
-      }
-      assoc_list = assoc_list->next;
+  for (key = keys; key != NULL; key = key->next) {
+    const GList *assoc_list;
+    GrlKeyID key_id = GRLPOINTER_TO_KEYID (key->data);
+
+    for (assoc_list = get_mapping_from_grl (key_id);
+         assoc_list != NULL;
+         assoc_list = assoc_list->next) {
+      tracker_grl_sparql_t *assoc = assoc_list->data;
+
+      if (assoc == NULL)
+        continue;
+
+      /* The favourite key is really setting or deleting a tag
+       * in tracker, so in the case of setting it to false skip
+       * the insert string creation step for this key completely.
+       */
+      if (assoc->grl_key == GRL_METADATA_KEY_FAVOURITE &&
+          !grl_media_get_favourite (media))
+        continue;
+
+      if (!grl_data_has_key (GRL_DATA (media), key_id))
+        continue;
+
+      if (!first)
+        g_string_append (gstr, " ; ");
+
+      gen_prop_insert_string (gstr, assoc, GRL_DATA (media));
+      first = FALSE;
     }
-    key = key->next;
   }
 
-  ret = gstr->str;
-  g_string_free (gstr, FALSE);
-
-  return ret;
+  return g_string_free (gstr, FALSE);
 }
 
 gchar *
@@ -533,16 +641,40 @@ grl_tracker_get_delete_conditional_string (const gchar *urn,
   return ret;
 }
 
+static GrlMedia *
+grl_tracker_build_grilo_media_default (GHashTable *ht)
+{
+  if (g_hash_table_lookup (ht, RDF_TYPE_MUSIC)) {
+    return grl_media_audio_new ();
+  } else if (g_hash_table_lookup (ht, RDF_TYPE_VIDEO)) {
+    return grl_media_video_new ();
+  } else if (g_hash_table_lookup (ht, RDF_TYPE_IMAGE)) {
+    return grl_media_image_new ();
+  } else if (g_hash_table_lookup (ht, RDF_TYPE_ARTIST)) {
+    return grl_media_container_new ();
+  } else if (g_hash_table_lookup (ht, RDF_TYPE_ALBUM)) {
+    return grl_media_container_new ();
+  } else if (g_hash_table_lookup (ht, RDF_TYPE_CONTAINER)) {
+    return grl_media_container_new ();
+  } else if (g_hash_table_lookup (ht, RDF_TYPE_FOLDER)) {
+    return grl_media_container_new ();
+  }
+
+  return NULL;
+}
+
 /**/
 
 /* Builds an appropriate GrlMedia based on ontology type returned by
    tracker, or NULL if unknown */
 GrlMedia *
-grl_tracker_build_grilo_media (const gchar *rdf_type)
+grl_tracker_build_grilo_media (const gchar   *rdf_type,
+                               GrlTypeFilter  type_filter)
 {
   GrlMedia *media = NULL;
   gchar **rdf_single_type;
   int i;
+  GHashTable *ht;
 
   if (!rdf_type) {
     return NULL;
@@ -551,26 +683,27 @@ grl_tracker_build_grilo_media (const gchar *rdf_type)
   /* As rdf_type can be formed by several types, split them */
   rdf_single_type = g_strsplit (rdf_type, ",", -1);
   i = g_strv_length (rdf_single_type) - 1;
+  ht = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  for (; i>= 0; i--)
+    g_hash_table_insert (ht, g_path_get_basename (rdf_single_type[i]), GINT_TO_POINTER(TRUE));
 
-  while (!media && i >= 0) {
-    if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_MUSIC)) {
-      media = grl_media_audio_new ();
-    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_VIDEO)) {
-      media = grl_media_video_new ();
-    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_IMAGE)) {
-      media = grl_media_image_new ();
-    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_ARTIST)) {
-      media = grl_media_box_new ();
-    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_ALBUM)) {
-      media = grl_media_box_new ();
-    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_BOX)) {
-      media = grl_media_box_new ();
-    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_FOLDER)) {
-      media = grl_media_box_new ();
-    }
-    i--;
+  if (type_filter == GRL_TYPE_FILTER_NONE ||
+      type_filter == GRL_TYPE_FILTER_ALL) {
+    media = grl_tracker_build_grilo_media_default (ht);
+  } else if ((type_filter & GRL_TYPE_FILTER_AUDIO) &&
+             g_hash_table_lookup (ht, RDF_TYPE_MUSIC)) {
+    media = grl_media_audio_new ();
+  } else if ((type_filter & GRL_TYPE_FILTER_VIDEO) &&
+             g_hash_table_lookup (ht, RDF_TYPE_VIDEO)) {
+    media = grl_media_video_new ();
+  } else if ((type_filter & GRL_TYPE_FILTER_IMAGE) &&
+             g_hash_table_lookup (ht, RDF_TYPE_IMAGE)) {
+    media = grl_media_image_new ();
+  } else {
+    media = grl_tracker_build_grilo_media_default (ht);
   }
 
+  g_hash_table_destroy (ht);
   g_strfreev (rdf_single_type);
 
   if (!media)
@@ -602,7 +735,7 @@ get_tracker_volume_name (const gchar *uri,
       if (g_file_equal (m_file, file)) {
         gchar *m_name = g_mount_get_name (G_MOUNT (mount->data));
         g_object_unref (G_OBJECT (m_file));
-        source_name = g_strdup_printf ("Removable - %s", m_name);
+        source_name = g_strdup_printf (_("Removable - %s"), m_name);
         g_free (m_name);
         break;
       }
@@ -614,7 +747,7 @@ get_tracker_volume_name (const gchar *uri,
     g_object_unref (G_OBJECT (file));
     g_object_unref (G_OBJECT (volume_monitor));
   } else {
-    source_name = g_strdup ("Local files");
+    source_name = g_strdup (_("Local files"));
   }
 
   return source_name;

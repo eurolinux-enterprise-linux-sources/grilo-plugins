@@ -26,9 +26,10 @@
 #endif
 
 #include <grilo.h>
+#include <glib/gi18n-lib.h>
 #include <net/grl-net.h>
 #include <gdata/gdata.h>
-#include <quvi/quvi.h>
+#include <totem-pl-parser.h>
 #include <string.h>
 
 #include "grl-youtube.h"
@@ -56,52 +57,52 @@ GRL_LOG_DOMAIN_STATIC(youtube_log_domain);
 #define ROOT_DIR_CATEGORIES_INDEX 1
 
 #define YOUTUBE_FEEDS_ID        "standard-feeds"
-#define YOUTUBE_FEEDS_NAME      "Standard feeds"
+#define YOUTUBE_FEEDS_NAME      N_("Standard feeds")
 
 #define YOUTUBE_CATEGORIES_ID   "categories"
-#define YOUTUBE_CATEGORIES_NAME "Categories"
-#define YOUTUBE_CATEGORIES_URL  "http://gdata.youtube.com/schemas/2007/categories.cat"
+#define YOUTUBE_CATEGORIES_NAME N_("Categories")
+#define YOUTUBE_CATEGORIES_URL  "https://gdata.youtube.com/schemas/2007/categories.cat"
 
 /* ----- Feeds categories ---- */
 
 #define YOUTUBE_TOP_RATED_ID         (YOUTUBE_FEEDS_ID "/0")
-#define YOUTUBE_TOP_RATED_NAME       "Top Rated"
+#define YOUTUBE_TOP_RATED_NAME       N_("Top Rated")
 
 #define YOUTUBE_TOP_FAVS_ID          (YOUTUBE_FEEDS_ID "/1")
-#define YOUTUBE_TOP_FAVS_NAME        "Top Favorites"
+#define YOUTUBE_TOP_FAVS_NAME        N_("Top Favorites")
 
 #define YOUTUBE_MOST_VIEWED_ID       (YOUTUBE_FEEDS_ID "/2")
-#define YOUTUBE_MOST_VIEWED_NAME     "Most Viewed"
+#define YOUTUBE_MOST_VIEWED_NAME     N_("Most Viewed")
 
 #define YOUTUBE_MOST_POPULAR_ID      (YOUTUBE_FEEDS_ID "/3")
-#define YOUTUBE_MOST_POPULAR_NAME    "Most Popular"
+#define YOUTUBE_MOST_POPULAR_NAME    N_("Most Popular")
 
 #define YOUTUBE_MOST_RECENT_ID       (YOUTUBE_FEEDS_ID "/4")
-#define YOUTUBE_MOST_RECENT_NAME     "Most Recent"
+#define YOUTUBE_MOST_RECENT_NAME     N_("Most Recent")
 
 #define YOUTUBE_MOST_DISCUSSED_ID    (YOUTUBE_FEEDS_ID "/5")
-#define YOUTUBE_MOST_DISCUSSED_NAME  "Most Discussed"
+#define YOUTUBE_MOST_DISCUSSED_NAME  N_("Most Discussed")
 
 #define YOUTUBE_MOST_LINKED_ID       (YOUTUBE_FEEDS_ID "/6")
-#define YOUTUBE_MOST_LINKED_NAME     "Most Linked"
+#define YOUTUBE_MOST_LINKED_NAME     N_("Most Linked")
 
 #define YOUTUBE_MOST_RESPONDED_ID    (YOUTUBE_FEEDS_ID "/7")
-#define YOUTUBE_MOST_RESPONDED_NAME  "Most Responded"
+#define YOUTUBE_MOST_RESPONDED_NAME  N_("Most Responded")
 
 #define YOUTUBE_FEATURED_ID          (YOUTUBE_FEEDS_ID "/8")
-#define YOUTUBE_FEATURED_NAME        "Recently Featured"
+#define YOUTUBE_FEATURED_NAME        N_("Recently Featured")
 
 #define YOUTUBE_MOBILE_ID            (YOUTUBE_FEEDS_ID "/9")
-#define YOUTUBE_MOBILE_NAME          "Watch On Mobile"
+#define YOUTUBE_MOBILE_NAME          N_("Watch On Mobile")
 
 /* --- Other --- */
 
 #define YOUTUBE_MAX_CHUNK       50
 
-#define YOUTUBE_VIDEO_INFO_URL  "http://www.youtube.com/get_video_info?video_id=%s"
-#define YOUTUBE_VIDEO_URL       "http://www.youtube.com/get_video?video_id=%s&t=%s&asv="
-#define YOUTUBE_CATEGORY_URL    "http://gdata.youtube.com/feeds/api/videos/-/%s?&start-index=%s&max-results=%s"
-#define YOUTUBE_WATCH_URL       "http://www.youtube.com/watch?v="
+#define YOUTUBE_VIDEO_INFO_URL  "https://www.youtube.com/get_video_info?video_id=%s"
+#define YOUTUBE_VIDEO_URL       "https://www.youtube.com/get_video?video_id=%s&t=%s&asv="
+#define YOUTUBE_CATEGORY_URL    "https://gdata.youtube.com/feeds/api/videos/-/%s?&start-index=%s&max-results=%s"
+#define YOUTUBE_WATCH_URL       "https://www.youtube.com/watch?v="
 
 #define YOUTUBE_VIDEO_MIME      "application/x-shockwave-flash"
 #define YOUTUBE_SITE_URL        "www.youtube.com"
@@ -109,11 +110,9 @@ GRL_LOG_DOMAIN_STATIC(youtube_log_domain);
 
 /* --- Plugin information --- */
 
-#define PLUGIN_ID   YOUTUBE_PLUGIN_ID
-
 #define SOURCE_ID   "grl-youtube"
 #define SOURCE_NAME "YouTube"
-#define SOURCE_DESC "A source for browsing and searching YouTube videos"
+#define SOURCE_DESC _("A source for browsing and searching YouTube videos")
 
 /* --- Data types --- */
 
@@ -122,8 +121,8 @@ typedef void (*AsyncReadCbFunc) (gchar *data, gpointer user_data);
 typedef void (*BuildMediaFromEntryCbFunc) (GrlMedia *media, gpointer user_data);
 
 typedef struct {
-  gchar *id;
-  gchar *name;
+  const gchar *id;
+  const gchar *name;
   guint count;
 } CategoryInfo;
 
@@ -142,10 +141,11 @@ typedef struct {
   CategoryInfo *category_info;
   guint emitted;
   guint matches;
-  guint ref_count;
+  gint ref_count;
 } OperationSpec;
 
 typedef struct {
+  GrlSource *source;
   GSourceFunc callback;
   gpointer user_data;
 } BuildCategorySpec;
@@ -174,7 +174,6 @@ typedef enum {
 
 struct _GrlYoutubeSourcePriv {
   GDataService *service;
-  quvi_t quvi_handle;
 
   GrlNetWc *wc;
 };
@@ -217,7 +216,7 @@ static void grl_youtube_get_media_from_uri (GrlSource *source,
 static void grl_youtube_source_cancel (GrlSource *source,
                                        guint operation_id);
 
-static void produce_from_directory (CategoryInfo *dir, gint dir_size, OperationSpec *os);
+static void produce_from_directory (CategoryInfo *dir, guint dir_size, OperationSpec *os);
 
 /* ==================== Global Data  ================= */
 
@@ -263,6 +262,10 @@ grl_youtube_plugin_init (GrlRegistry *registry,
 
   GRL_DEBUG ("youtube_plugin_init");
 
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+
   if (!configs) {
     GRL_INFO ("Configuration not provided! Plugin not loaded");
     return FALSE;
@@ -281,13 +284,6 @@ grl_youtube_plugin_init (GrlRegistry *registry,
   }
   format = grl_config_get_string (config, "format");
 
-#if !GLIB_CHECK_VERSION(2,32,0)
-  /* libgdata needs this */
-  if (!g_thread_supported()) {
-    g_thread_init (NULL);
-  }
-#endif
-
   source = grl_youtube_source_new (api_key, YOUTUBE_CLIENT_ID, format);
 
   grl_registry_register_source (registry,
@@ -301,9 +297,18 @@ grl_youtube_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_youtube_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   YOUTUBE_PLUGIN_ID,
+                   "YouTube",
+                   "A plugin for browsing and searching YouTube videos",
+                   "Igalia",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_youtube_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== YouTube GObject ================ */
 
@@ -314,18 +319,24 @@ grl_youtube_source_new (const gchar *api_key, const gchar *client_id, const gcha
 {
   GrlYoutubeSource *source;
   GDataYouTubeService *service;
+  GIcon *icon;
+  GFile *file;
+  const char *tags[] = {
+    "net:internet",
+    NULL
+  };
 
   GRL_DEBUG ("grl_youtube_source_new");
 
-#ifdef HAVE_LIBGDATA_0_9
   service = gdata_youtube_service_new (api_key, NULL);
-#else /* HAVE_LIBGDATA_0_9 */
-  service = gdata_youtube_service_new (api_key, client_id);
-#endif /* !HAVE_LIBGDATA_0_9 */
   if (!service) {
     GRL_WARNING ("Failed to initialize gdata service");
     return NULL;
   }
+
+  file = g_file_new_for_uri ("resource:///org/gnome/grilo/plugins/youtube/channel-youtube.svg");
+  icon = g_file_icon_new (file);
+  g_object_unref (file);
 
   /* Use auto-split mode because YouTube fails for queries
      that request more than YOUTUBE_MAX_CHUNK results */
@@ -336,21 +347,14 @@ grl_youtube_source_new (const gchar *api_key, const gchar *client_id, const gcha
 					     "auto-split-threshold",
 					     YOUTUBE_MAX_CHUNK,
                                              "yt-service", service,
-                                             "supported-media", GRL_MEDIA_TYPE_VIDEO,
+                                             "supported-media", GRL_SUPPORTED_MEDIA_VIDEO,
+                                             "source-icon", icon,
+                                             "source-tags", tags,
 					     NULL));
 
-  /* Set up quvi */
-  if (quvi_init (&(source->priv->quvi_handle)) != QUVI_OK) {
-    source->priv->quvi_handle = NULL;
-  } else {
-    if (format)
-      quvi_setopt (source->priv->quvi_handle, QUVIOPT_FORMAT, format);
-    else
-      quvi_setopt (source->priv->quvi_handle, QUVIOPT_FORMAT, "mp4_360p");
-    quvi_setopt (source->priv->quvi_handle, QUVIOPT_NOVERIFY);
-  }
-
+  g_object_unref (icon);
   ytsrc = source;
+  g_object_add_weak_pointer (G_OBJECT (source), (gpointer *) &ytsrc);
 
   return source;
 }
@@ -419,14 +423,8 @@ grl_youtube_source_finalize (GObject *object)
 
   self = GRL_YOUTUBE_SOURCE (object);
 
-  if (self->priv->wc)
-    g_object_unref (self->priv->wc);
-
-  if (self->priv->service)
-    g_object_unref (self->priv->service);
-
-  if (self->priv->quvi_handle)
-    quvi_close (&(self->priv->quvi_handle));
+  g_clear_object (&self->priv->wc);
+  g_clear_object (&self->priv->service);
 
   G_OBJECT_CLASS (grl_youtube_source_parent_class)->finalize (object);
 }
@@ -434,13 +432,22 @@ grl_youtube_source_finalize (GObject *object)
 /* ======================= Utilities ==================== */
 
 static void
+entry_parsed_cb (TotemPlParser *parser,
+                 const char    *uri,
+                 GHashTable    *metadata,
+                 GrlMedia      *media)
+{
+  grl_media_set_url (media, uri);
+}
+
+static void
 release_operation_data (guint operation_id)
 {
   GCancellable *cancellable = grl_operation_get_data (operation_id);
 
-  if (cancellable) {
-    g_object_unref (cancellable);
-  }
+  g_clear_object (&cancellable);
+
+  grl_operation_set_data (operation_id, NULL);
 }
 
 static OperationSpec *
@@ -451,7 +458,7 @@ operation_spec_new (void)
   GRL_DEBUG ("Allocating new spec");
 
   os =  g_slice_new0 (OperationSpec);
-  os->ref_count = 1;
+  g_atomic_int_set (&os->ref_count, 1);
 
   return os;
 }
@@ -459,11 +466,8 @@ operation_spec_new (void)
 static void
 operation_spec_unref (OperationSpec *os)
 {
-  os->ref_count--;
-  if (os->ref_count == 0) {
-    if (os->cancellable) {
-      g_object_unref (os->cancellable);
-    }
+  if (g_atomic_int_dec_and_test (&os->ref_count)) {
+    g_clear_object (&os->cancellable);
     g_slice_free (OperationSpec, os);
     GRL_DEBUG ("freeing spec");
   }
@@ -473,64 +477,7 @@ static void
 operation_spec_ref (OperationSpec *os)
 {
   GRL_DEBUG ("Reffing spec");
-  os->ref_count++;
-}
-
-inline static GrlNetWc *
-get_wc (void)
-{
-  if (ytsrc && !ytsrc->priv->wc)
-    ytsrc->priv->wc = grl_net_wc_new ();
-
-  return ytsrc->priv->wc;
-}
-
-static void
-read_done_cb (GObject *source_object,
-              GAsyncResult *res,
-              gpointer user_data)
-{
-  AsyncReadCb *arc = (AsyncReadCb *) user_data;
-  GError *wc_error = NULL;
-  gchar *content = NULL;
-
-  grl_net_wc_request_finish (GRL_NET_WC (source_object),
-                         res,
-                         &content,
-                         NULL,
-                         &wc_error);
-  if (wc_error) {
-    if (wc_error->code != GRL_NET_WC_ERROR_CANCELLED) {
-      GRL_WARNING ("Failed to open '%s': %s", arc->url, wc_error->message);
-    }
-    arc->callback (NULL, arc->user_data);
-    g_error_free (wc_error);
-  } else {
-    arc->callback (content, arc->user_data);
-  }
-  g_free (arc->url);
-  g_slice_free (AsyncReadCb, arc);
-}
-
-static void
-read_url_async (const gchar *url,
-                GCancellable *cancellable,
-                AsyncReadCbFunc callback,
-                gpointer user_data)
-{
-  AsyncReadCb *arc;
-
-  arc = g_slice_new0 (AsyncReadCb);
-  arc->url = g_strdup (url);
-  arc->callback = callback;
-  arc->user_data = user_data;
-
-  GRL_DEBUG ("Opening async '%s'", url);
-  grl_net_wc_request_async (get_wc (),
-                        url,
-                        cancellable,
-                        read_done_cb,
-                        arc);
+  g_atomic_int_inc (&os->ref_count);
 }
 
 static void
@@ -546,9 +493,6 @@ build_media_from_entry (GrlYoutubeSource *source,
   GDataMediaThumbnail *thumbnail;
   GrlMedia *media;
   GList *iter;
-  quvi_media_t v;
-  QUVIcode rc;
-  gchar *url;
 
   if (!content) {
     media = grl_media_video_new ();
@@ -560,7 +504,7 @@ build_media_from_entry (GrlYoutubeSource *source,
 
   /* Make sure we set the media id in any case */
   if (!grl_media_get_id (media)) {
-    grl_media_set_id (media, gdata_youtube_video_get_video_id (video));
+    grl_media_set_id (media, gdata_entry_get_id (entry));
   }
 
   iter = (GList *) keys;
@@ -604,31 +548,22 @@ build_media_from_entry (GrlYoutubeSource *source,
       gdouble average;
       gdata_youtube_video_get_rating (video, NULL, NULL, NULL, &average);
       grl_media_set_rating (media, average, 5.00);
-    } else if (key == GRL_METADATA_KEY_URL && source->priv->quvi_handle) {
-      rc = quvi_parse (source->priv->quvi_handle,
-                       (char *) gdata_youtube_video_get_player_uri (video),
-                       &v);
-      if (rc == QUVI_OK) {
-        rc = quvi_getprop (v, QUVIPROP_MEDIAURL, &url);
-        if (rc == QUVI_OK) {
-          grl_media_set_url (media, url);
-        }
-        quvi_parse_close (&v);
-      }
-      else {
-	GRL_WARNING ("Failed to get video URL. libquvi error '%s'",
-		     quvi_strerror (source->priv->quvi_handle, rc));
-      }
+    } else if (key == GRL_METADATA_KEY_URL) {
+      TotemPlParser *parser;
+      TotemPlParserResult res;
+
+      parser = totem_pl_parser_new ();
+      g_signal_connect (parser, "entry-parsed",
+                        G_CALLBACK (entry_parsed_cb), media);
+      res = totem_pl_parser_parse (parser,
+                                   (char *) gdata_youtube_video_get_player_uri (video),
+                                   FALSE);
+      if (res != TOTEM_PL_PARSER_RESULT_SUCCESS)
+	GRL_WARNING ("Failed to get video URL. totem-pl-parser error '%d'", res);
+      g_clear_object (&parser);
     } else if (key == GRL_METADATA_KEY_EXTERNAL_PLAYER) {
-      GDataYouTubeContent *youtube_content;
-      youtube_content =
-	gdata_youtube_video_look_up_content (video,
-					     "application/x-shockwave-flash");
-      if (youtube_content != NULL) {
-        const gchar *uri =
-          gdata_media_content_get_uri (GDATA_MEDIA_CONTENT (youtube_content));
-	grl_media_set_external_player (media, uri);
-      }
+      const gchar *uri = gdata_youtube_video_get_player_uri (video);
+      grl_media_set_external_player (media, uri);
     }
     iter = g_list_next (iter);
   }
@@ -637,24 +572,44 @@ build_media_from_entry (GrlYoutubeSource *source,
 }
 
 static void
-parse_categories (xmlDocPtr doc, xmlNodePtr node, BuildCategorySpec *bcs)
+build_categories_directory_read_cb (GObject *source_object,
+                                    GAsyncResult *result,
+                                    gpointer user_data)
 {
+  GDataYouTubeService *service;
+  BuildCategorySpec *bcs;
+  GDataAPPCategories *app_categories = NULL;
+  GList *categories = NULL;  /*<unowned GDataCategory>*/
+  GError *error = NULL;
   guint total = 0;
   GList *all = NULL, *iter;
   CategoryInfo *cat_info;
-  gchar *id;
   guint index = 0;
 
-  GRL_DEBUG ("parse_categories");
+  GRL_DEBUG (G_STRFUNC);
 
-  while (node) {
+  service = GDATA_YOUTUBE_SERVICE (source_object);
+  bcs = user_data;
+
+  app_categories = gdata_youtube_service_get_categories_finish (service,
+                                                                result,
+                                                                &error);
+
+  if (error != NULL) {
+    g_error_free (error);
+    goto done;
+  }
+
+  categories = gdata_app_categories_get_categories (app_categories);
+
+  for (; categories != NULL; categories = categories->next) {
+    GDataCategory *category = GDATA_CATEGORY (categories->data);
+
     cat_info = g_slice_new (CategoryInfo);
-    id = (gchar *) xmlGetProp (node, (xmlChar *) "term");
-    cat_info->id = g_strconcat (YOUTUBE_CATEGORIES_ID, "/", id, NULL);
-    cat_info->name = (gchar *) xmlGetProp (node, (xmlChar *) "label");
+    cat_info->id = g_strconcat (YOUTUBE_CATEGORIES_ID, "/",
+                                gdata_category_get_term (category), NULL);
+    cat_info->name = g_strdup (gdata_category_get_label (category));
     all = g_list_prepend (all, cat_info);
-    g_free (id);
-    node = node->next;
     total++;
     GRL_DEBUG ("  Found category: '%d - %s'", index++, cat_info->name);
   }
@@ -666,58 +621,19 @@ parse_categories (xmlDocPtr doc, xmlNodePtr node, BuildCategorySpec *bcs)
     do {
       cat_info = (CategoryInfo *) iter->data;
       categories_dir[total - 1].id = cat_info->id ;
-      categories_dir[total - 1].name = cat_info->name;
+      categories_dir[total - 1].name = (gchar *) g_dgettext (GETTEXT_PACKAGE,
+                                                             cat_info->name);
       categories_dir[total - 1].count = -1;
       total--;
       g_slice_free (CategoryInfo, cat_info);
       iter = g_list_next (iter);
     } while (iter);
     g_list_free (all);
-
-    bcs->callback (bcs);
-    g_slice_free (BuildCategorySpec, bcs);
-  }
-}
-
-static void
-build_categories_directory_read_cb (gchar *xmldata, gpointer user_data)
-{
-  xmlDocPtr doc;
-  xmlNodePtr node;
-
-  if (!xmldata) {
-    g_critical ("Failed to build category directory (1)");
-    return;
   }
 
-  doc = xmlReadMemory (xmldata, strlen (xmldata), NULL, NULL,
-                       XML_PARSE_RECOVER | XML_PARSE_NOBLANKS);
-  if (!doc) {
-    g_critical ("Failed to build category directory (2)");
-    goto free_resources;
-  }
-
-  node = xmlDocGetRootElement (doc);
-  if (!node) {
-    g_critical ("Failed to build category directory (3)");
-    goto free_resources;
-  }
-
-  if (xmlStrcmp (node->name, (const xmlChar *) "categories")) {
-    g_critical ("Failed to build category directory (4)");
-    goto free_resources;
-  }
-
-  node = node->xmlChildrenNode;
-  if (!node) {
-    g_critical ("Failed to build category directory (5)");
-    goto free_resources;
-  }
-
-  parse_categories (doc, node, user_data);
-
- free_resources:
-  xmlFreeDoc (doc);
+done:
+  bcs->callback (bcs);
+  g_slice_free (BuildCategorySpec, bcs);
 }
 
 static gint
@@ -755,7 +671,7 @@ get_category_term_from_id (const gchar *category_id)
 static gint
 get_category_index_from_id (const gchar *category_id)
 {
-  gint i;
+  guint i;
 
   for (i=0; i<root_dir[ROOT_DIR_CATEGORIES_INDEX].count; i++) {
     if (!strcmp (categories_dir[i].id, category_id)) {
@@ -793,6 +709,9 @@ build_media_from_entry_search_cb (GrlMedia *media, gpointer user_data)
 
   if (os->emitted < os->count) {
     remaining = os->count - os->emitted - 1;
+    if (remaining == 0) {
+      release_operation_data (os->operation_id);
+    }
     os->callback (os->source,
 		  os->operation_id,
 		  media,
@@ -811,12 +730,16 @@ build_media_from_entry_search_cb (GrlMedia *media, gpointer user_data)
 static void
 build_category_directory (BuildCategorySpec *bcs)
 {
+  GrlYoutubeSource *source;
+  GDataYouTubeService *service;
+
   GRL_DEBUG (__FUNCTION__);
 
-  read_url_async (YOUTUBE_CATEGORIES_URL,
-                  NULL,
-                  build_categories_directory_read_cb,
-                  bcs);
+  source = GRL_YOUTUBE_SOURCE (bcs->source);
+  service = GDATA_YOUTUBE_SERVICE (source->priv->service);
+  gdata_youtube_service_get_categories_async (service, NULL,
+                                              build_categories_directory_read_cb,
+                                              bcs);
 }
 
 static void
@@ -852,9 +775,7 @@ resolve_cb (GObject *object,
                             rs);
   }
 
-  if (video) {
-    g_object_unref (video);
-  }
+  g_clear_object (&video);
 }
 
 static void
@@ -937,9 +858,9 @@ search_cb (GObject *object, GAsyncResult *result, OperationSpec *os)
     }
   } else {
     if (!error) {
-      error = g_error_new (GRL_CORE_ERROR,
-			   os->error_code,
-			   "Failed to obtain feed from YouTube");
+      error = g_error_new_literal (GRL_CORE_ERROR,
+                                   os->error_code,
+                                   _("Failed to get feed"));
     } else {
       error->code = os->error_code;
     }
@@ -948,8 +869,7 @@ search_cb (GObject *object, GAsyncResult *result, OperationSpec *os)
     need_extra_unref = TRUE;
   }
 
-  if (feed)
-    g_object_unref (feed);
+  g_clear_object (&feed);
 
   GRL_DEBUG ("Unreffing spec in search_cb");
   operation_spec_unref (os);
@@ -992,7 +912,7 @@ classify_media_id (const gchar *media_id)
 
 static void
 set_category_childcount (GDataService *service,
-			 GrlMediaBox *content,
+			 GrlMedia *content,
                          CategoryInfo *dir,
                          guint index)
 {
@@ -1028,7 +948,7 @@ set_category_childcount (GDataService *service,
   }
 
   if (set_childcount) {
-    grl_media_box_set_childcount (content, childcount);
+    grl_media_set_childcount (content, childcount);
   }
 }
 
@@ -1042,7 +962,7 @@ produce_container_from_directory (GDataService *service,
 
   if (!media) {
     /* Create mode */
-    content = grl_media_box_new ();
+    content = grl_media_container_new ();
   } else {
     /* Update mode */
     content = media;
@@ -1053,23 +973,20 @@ produce_container_from_directory (GDataService *service,
     grl_media_set_title (content, YOUTUBE_ROOT_NAME);
   } else {
     grl_media_set_id (content, dir[index].id);
-    grl_media_set_title (content, dir[index].name);
+    grl_media_set_title (content, g_dgettext (GETTEXT_PACKAGE, dir[index].name));
   }
   grl_media_set_site (content, YOUTUBE_SITE_URL);
-  set_category_childcount (service, GRL_MEDIA_BOX (content), dir, index);
+  set_category_childcount (service, content, dir, index);
 
   return content;
 }
 
 static void
-produce_from_directory (CategoryInfo *dir, gint dir_size, OperationSpec *os)
+produce_from_directory (CategoryInfo *dir, guint dir_size, OperationSpec *os)
 {
   guint index, remaining;
 
   GRL_DEBUG ("produce_from_directory");
-
-  /* YouTube's first index is 1, but the directories start at 0 */
-  os->skip--;
 
   if (os->skip >= dir_size) {
     /* No results */
@@ -1119,8 +1036,9 @@ produce_from_feed (OperationSpec *os)
 
   if (feed_type < 0) {
     error = g_error_new (GRL_CORE_ERROR,
-			 GRL_CORE_ERROR_BROWSE_FAILED,
-			 "Invalid feed id: %s", os->container_id);
+                         GRL_CORE_ERROR_BROWSE_FAILED,
+                         _("Invalid feed identifier %s"),
+                         os->container_id);
     os->callback (os->source,
 		  os->operation_id,
 		  NULL,
@@ -1145,13 +1063,16 @@ produce_from_feed (OperationSpec *os)
   operation_spec_ref (os);
 
   os->cancellable = g_cancellable_new ();
-  grl_operation_set_data (os->operation_id, os->cancellable);
+  grl_operation_set_data (os->operation_id, g_object_ref (os->cancellable));
 
   service = GRL_YOUTUBE_SOURCE (os->source)->priv->service;
-  query = gdata_query_new_with_limits (NULL , os->skip, os->count);
+
+  /* Index in GData starts at 1 */
+  query = GDATA_QUERY (gdata_youtube_query_new (NULL));
+  gdata_query_set_start_index (query, os->skip + 1);
+  gdata_query_set_max_results (query, os->count);
   os->category_info = &feeds_dir[feed_type];
 
-#ifdef HAVE_LIBGDATA_0_9
   gdata_youtube_service_query_standard_feed_async (GDATA_YOUTUBE_SERVICE (service),
                                                    feed_type,
                                                    query,
@@ -1161,16 +1082,6 @@ produce_from_feed (OperationSpec *os)
                                                    NULL,
                                                    (GAsyncReadyCallback) search_cb,
                                                    os);
-#else /* HAVE_LIBGDATA_0_9 */
-  gdata_youtube_service_query_standard_feed_async (GDATA_YOUTUBE_SERVICE (service),
-                                                   feed_type,
-                                                   query,
-                                                   os->cancellable,
-                                                   search_progress_cb,
-                                                   os,
-                                                   (GAsyncReadyCallback) search_cb,
-                                                   os);
-#endif /* !HAVE_LIBGDATA_0_9 */
 
   g_object_unref (query);
 }
@@ -1189,8 +1100,9 @@ produce_from_category (OperationSpec *os)
 
   if (!category_term) {
     error = g_error_new (GRL_CORE_ERROR,
-			 GRL_CORE_ERROR_BROWSE_FAILED,
-			 "Invalid category id: %s", os->container_id);
+                         GRL_CORE_ERROR_BROWSE_FAILED,
+                         _("Invalid category identifier %s"),
+                         os->container_id);
     os->callback (os->source,
 		  os->operation_id,
 		  NULL,
@@ -1206,11 +1118,14 @@ produce_from_category (OperationSpec *os)
   operation_spec_ref (os);
 
   service = GRL_YOUTUBE_SOURCE (os->source)->priv->service;
-  query = gdata_query_new_with_limits (NULL , os->skip, os->count);
+
+  /* Index in GData starts at 1 */
+  query = GDATA_QUERY (gdata_youtube_query_new (NULL));
+  gdata_query_set_start_index (query, os->skip + 1);
+  gdata_query_set_max_results (query, os->count);
   os->category_info = &categories_dir[category_index];
   gdata_query_set_categories (query, category_term);
 
-#ifdef HAVE_LIBGDATA_0_9
   gdata_youtube_service_query_videos_async (GDATA_YOUTUBE_SERVICE (service),
                                             query,
                                             NULL,
@@ -1219,15 +1134,6 @@ produce_from_category (OperationSpec *os)
                                             NULL,
                                             (GAsyncReadyCallback) search_cb,
                                             os);
-#else /* HAVE_LIBGDATA_0_9 */
-  gdata_youtube_service_query_videos_async (GDATA_YOUTUBE_SERVICE (service),
-					    query,
-					    NULL,
-					    search_progress_cb,
-					    os,
-					    (GAsyncReadyCallback) search_cb,
-					    os);
-#endif /* !HAVE_LIBGDATA_0_9 */
 
   g_object_unref (query);
 }
@@ -1297,9 +1203,7 @@ media_from_uri_cb (GObject *object, GAsyncResult *result, gpointer user_data)
 			    mfus);
   }
 
-  if (video) {
-    g_object_unref (video);
-  }
+  g_clear_object (&video);
 }
 
 static gboolean
@@ -1330,13 +1234,12 @@ produce_container_from_category_cb (BuildCategorySpec *spec)
     media = rs->media;
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_RESOLVE_FAILED,
-                         "Invalid category id");
+                         _("Invalid category identifier %s"),
+                         id);
   }
 
   rs->callback (rs->source, rs->operation_id, media, rs->user_data, error);
-  if (error) {
-    g_error_free (error);
-  }
+  g_clear_error (&error);
 
   return FALSE;
 }
@@ -1394,7 +1297,7 @@ grl_youtube_source_search (GrlSource *source,
   os->cancellable = g_cancellable_new ();
   os->operation_id = ss->operation_id;
   os->keys = ss->keys;
-  os->skip = grl_operation_options_get_skip (ss->options) + 1;
+  os->skip = grl_operation_options_get_skip (ss->options);
   os->count = grl_operation_options_get_count (ss->options);
   os->callback = ss->callback;
   os->user_data = ss->user_data;
@@ -1403,11 +1306,13 @@ grl_youtube_source_search (GrlSource *source,
   /* Look for OPERATION_SPEC_REF_RATIONALE for details */
   operation_spec_ref (os);
 
-  grl_operation_set_data (ss->operation_id, os->cancellable);
+  grl_operation_set_data (ss->operation_id, g_object_ref (os->cancellable));
 
-  query = gdata_query_new_with_limits (ss->text, os->skip, os->count);
+  /* Index in GData starts at 1 */
+  query = GDATA_QUERY (gdata_youtube_query_new (ss->text));
+  gdata_query_set_start_index (query, os->skip + 1);
+  gdata_query_set_max_results (query, os->count);
 
-#ifdef HAVE_LIBGDATA_0_9
   gdata_youtube_service_query_videos_async (GDATA_YOUTUBE_SERVICE (GRL_YOUTUBE_SOURCE (source)->priv->service),
                                             query,
                                             os->cancellable,
@@ -1416,15 +1321,6 @@ grl_youtube_source_search (GrlSource *source,
                                             NULL,
                                             (GAsyncReadyCallback) search_cb,
                                             os);
-#else /* HAVE_LIBGDATA_0_9 */
-  gdata_youtube_service_query_videos_async (GDATA_YOUTUBE_SERVICE (GRL_YOUTUBE_SOURCE (source)->priv->service),
-					    query,
-					    os->cancellable,
-					    search_progress_cb,
-					    os,
-					    (GAsyncReadyCallback) search_cb,
-					    os);
-#endif /* !HAVE_LIBGDATA_0_9 */
 
   g_object_unref (query);
 }
@@ -1437,7 +1333,11 @@ grl_youtube_source_browse (GrlSource *source,
   OperationSpec *os;
   const gchar *container_id;
 
-  GRL_DEBUG ("%s: %s", __FUNCTION__, grl_media_get_id (bs->container));
+  GRL_DEBUG ("%s: %s (%u, %d)",
+             __FUNCTION__,
+             grl_media_get_id (bs->container),
+             grl_operation_options_get_skip (bs->options),
+             grl_operation_options_get_count (bs->options));
 
   container_id = grl_media_get_id (bs->container);
 
@@ -1446,8 +1346,8 @@ grl_youtube_source_browse (GrlSource *source,
   os->operation_id = bs->operation_id;
   os->container_id = container_id;
   os->keys = bs->keys;
-  os->flags = grl_operation_options_get_flags (bs->options);
-  os->skip = grl_operation_options_get_skip (bs->options) + 1;
+  os->flags = grl_operation_options_get_resolution_flags (bs->options);
+  os->skip = grl_operation_options_get_skip (bs->options);
   os->count = grl_operation_options_get_count (bs->options);
   os->callback = bs->callback;
   os->user_data = bs->user_data;
@@ -1465,6 +1365,7 @@ grl_youtube_source_browse (GrlSource *source,
     case YOUTUBE_MEDIA_TYPE_CATEGORIES:
       if (!categories_dir) {
         bcs = g_slice_new0 (BuildCategorySpec);
+        bcs->source = bs->source;
         bcs->callback = (GSourceFunc) produce_from_category_cb;
         bcs->user_data = os;
         build_category_directory (bcs);
@@ -1524,7 +1425,8 @@ grl_youtube_source_resolve (GrlSource *source,
       } else {
         error = g_error_new (GRL_CORE_ERROR,
                              GRL_CORE_ERROR_RESOLVE_FAILED,
-                             "Invalid feed id");
+                             _("Invalid feed identifier %s"),
+                             id);
       }
     }
     break;
@@ -1532,6 +1434,7 @@ grl_youtube_source_resolve (GrlSource *source,
     {
       if (!categories_dir) {
         bcs = g_slice_new0 (BuildCategorySpec);
+        bcs->source = source;
         bcs->callback = (GSourceFunc) produce_container_from_category_cb;
         bcs->user_data = rs;
         build_category_directory (bcs);
@@ -1543,7 +1446,8 @@ grl_youtube_source_resolve (GrlSource *source,
         } else {
           error = g_error_new (GRL_CORE_ERROR,
                                GRL_CORE_ERROR_RESOLVE_FAILED,
-                               "Invalid category id");
+                               _("Invalid category identifier %s"),
+                               id);
         }
       }
     }
@@ -1554,7 +1458,6 @@ grl_youtube_source_resolve (GrlSource *source,
     grl_operation_set_data (rs->operation_id, cancellable);
     gchar *entryid = g_strconcat ("tag:youtube.com,2008:video:", id, NULL);
 
-#ifdef HAVE_LIBGDATA_0_9
       gdata_service_query_single_entry_async (service,
                                               NULL,
                                               entryid,
@@ -1563,15 +1466,6 @@ grl_youtube_source_resolve (GrlSource *source,
                                               cancellable,
                                               resolve_cb,
                                               rs);
-#else /* HAVE_LIBGDATA_0_9 */
-      gdata_service_query_single_entry_async (service,
-                                              entryid,
-                                              NULL,
-                                              GDATA_TYPE_YOUTUBE_VIDEO,
-                                              cancellable,
-                                              metadata_cb,
-                                              ms);
-#endif /* !HAVE_LIBGDATA_0_9 */
 
       g_free (entryid);
       break;
@@ -1614,8 +1508,9 @@ grl_youtube_get_media_from_uri (GrlSource *source,
   video_id = get_video_id_from_url (mfus->uri);
   if (video_id == NULL) {
     error = g_error_new (GRL_CORE_ERROR,
-			 GRL_CORE_ERROR_MEDIA_FROM_URI_FAILED,
-			 "Cannot create media from '%s'", mfus->uri);
+                         GRL_CORE_ERROR_MEDIA_FROM_URI_FAILED,
+                         _("Cannot get media from %s"),
+                         mfus->uri);
     mfus->callback (source, mfus->operation_id, NULL, mfus->user_data, error);
     g_error_free (error);
     return;
@@ -1627,7 +1522,6 @@ grl_youtube_get_media_from_uri (GrlSource *source,
   grl_operation_set_data (mfus->operation_id, cancellable);
   entry_id = g_strconcat ("tag:youtube.com,2008:video:", video_id, NULL);
 
-#ifdef HAVE_LIBGDATA_0_9
   gdata_service_query_single_entry_async (service,
                                           NULL,
                                           entry_id,
@@ -1636,15 +1530,6 @@ grl_youtube_get_media_from_uri (GrlSource *source,
                                           cancellable,
                                           media_from_uri_cb,
                                           mfus);
-#else /* HAVE_LIBGDATA_0_9 */
-  gdata_service_query_single_entry_async (service,
-					  entry_id,
-					  NULL,
-					  GDATA_TYPE_YOUTUBE_VIDEO,
-					  cancellable,
-					  media_from_uri_cb,
-					  mfus);
-#endif /* !HAVE_LIBGDATA_0_9 */
 
   g_free (entry_id);
 }
@@ -1653,11 +1538,16 @@ static void
 grl_youtube_source_cancel (GrlSource *source,
                            guint operation_id)
 {
-  GCancellable *cancellable;
+  GCancellable *cancellable = NULL;
+  gpointer data;
 
   GRL_DEBUG (__FUNCTION__);
 
-  cancellable = G_CANCELLABLE (grl_operation_get_data (operation_id));
+  data = grl_operation_get_data (operation_id);
+
+  if (data) {
+    cancellable = G_CANCELLABLE (data);
+  }
 
   if (cancellable) {
     g_cancellable_cancel (cancellable);

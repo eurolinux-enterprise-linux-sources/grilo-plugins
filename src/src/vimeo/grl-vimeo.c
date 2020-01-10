@@ -33,6 +33,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <gio/gio.h>
+#include <glib/gi18n-lib.h>
 
 #include "grl-vimeo.h"
 #include "gvimeo.h"
@@ -49,11 +51,9 @@ GRL_LOG_DOMAIN_STATIC(vimeo_log_domain);
 
 /* --- Plugin information --- */
 
-#define PLUGIN_ID   VIMEO_PLUGIN_ID
-
 #define SOURCE_ID   "grl-vimeo"
 #define SOURCE_NAME "Vimeo"
-#define SOURCE_DESC "A source for browsing and searching Vimeo videos"
+#define SOURCE_DESC _("A source for browsing and searching Vimeo videos")
 
 #define MAX_ELEMENTS 50
 
@@ -78,6 +78,7 @@ struct _GrlVimeoSourcePrivate {
 };
 
 static GrlVimeoSource *grl_vimeo_source_new (void);
+static void grl_vimeo_source_finalize (GObject *object);
 
 gboolean grl_vimeo_plugin_init (GrlRegistry *registry,
                                 GrlPlugin *plugin,
@@ -112,11 +113,9 @@ grl_vimeo_plugin_init (GrlRegistry *registry,
 
   GRL_DEBUG ("vimeo_plugin_init");
 
-#if !GLIB_CHECK_VERSION(2,32,0)
-  if (!g_thread_supported ()) {
-    g_thread_init (NULL);
-  }
-#endif
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 
   if (!configs) {
     GRL_INFO ("Configuration not provided! Plugin not loaded");
@@ -155,43 +154,69 @@ grl_vimeo_plugin_init (GrlRegistry *registry,
   init_result = TRUE;
 
  go_out:
-
-  if (vimeo_key != NULL)
-    g_free (vimeo_key);
-  if (vimeo_secret != NULL)
-    g_free (vimeo_secret);
+  g_clear_pointer (&vimeo_key, g_free);
+  g_clear_pointer (&vimeo_secret, g_free);
 
   return init_result;
 }
 
-GRL_PLUGIN_REGISTER (grl_vimeo_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   VIMEO_PLUGIN_ID,
+                   "Vimeo",
+                   "A plugin for searching Vimeo videos",
+                   "Igalia S.L.",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_vimeo_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== Vimeo GObject ================ */
 
 static GrlVimeoSource *
 grl_vimeo_source_new (void)
 {
+  GIcon *icon;
+  GFile *file;
+  GrlVimeoSource *source;
+  const char *tags[] = {
+    "net:internet",
+    NULL
+  };
+
   GRL_DEBUG ("grl_vimeo_source_new");
 
-  return g_object_new (GRL_VIMEO_SOURCE_TYPE,
-                       "source-id", SOURCE_ID,
-                       "source-name", SOURCE_NAME,
-                       "source-desc", SOURCE_DESC,
-                       "supported-media", GRL_MEDIA_TYPE_VIDEO,
-                       NULL);
+  file = g_file_new_for_uri ("resource:///org/gnome/grilo/plugins/vimeo/channel-vimeo.svg");
+  icon = g_file_icon_new (file);
+  g_object_unref (file);
+
+  source = g_object_new (GRL_VIMEO_SOURCE_TYPE,
+                         "source-id", SOURCE_ID,
+                         "source-name", SOURCE_NAME,
+                         "source-desc", SOURCE_DESC,
+                         "supported-media", GRL_SUPPORTED_MEDIA_VIDEO,
+                         "source-icon", icon,
+                         "source-tags", tags,
+                         NULL);
+  g_object_unref (icon);
+
+  return source;
 }
 
 static void
 grl_vimeo_source_class_init (GrlVimeoSourceClass * klass)
 {
   GrlSourceClass *source_class = GRL_SOURCE_CLASS (klass);
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
   source_class->supported_keys = grl_vimeo_source_supported_keys;
   source_class->slow_keys = grl_vimeo_source_slow_keys;
   source_class->resolve = grl_vimeo_source_resolve;
   source_class->search = grl_vimeo_source_search;
+
+  object_class->finalize = grl_vimeo_source_finalize;
 
   g_type_class_add_private (klass, sizeof (GrlVimeoSourcePrivate));
 }
@@ -205,6 +230,16 @@ grl_vimeo_source_init (GrlVimeoSource *source)
 }
 
 G_DEFINE_TYPE (GrlVimeoSource, grl_vimeo_source, GRL_TYPE_SOURCE);
+
+static void
+grl_vimeo_source_finalize (GObject *object)
+{
+  GrlVimeoSource *source = GRL_VIMEO_SOURCE (object);
+
+  g_clear_object (&source->priv->vimeo);
+
+  G_OBJECT_CLASS (grl_vimeo_source_parent_class)->finalize (object);
+}
 
 /* ======================= Utilities ==================== */
 
@@ -244,7 +279,12 @@ update_media (GrlMedia *media, GHashTable *video)
   str = g_hash_table_lookup (video, VIMEO_VIDEO_ID);
   if (str)
   {
+    char *external_url;
+
     grl_media_set_id (media, str);
+    external_url = g_strdup_printf ("https://vimeo.com/%s", str);
+    grl_media_set_external_url (media, external_url);
+    g_free (external_url);
   }
 
   str = g_hash_table_lookup (video, VIMEO_VIDEO_TITLE);
@@ -290,13 +330,13 @@ update_media (GrlMedia *media, GHashTable *video)
   str = g_hash_table_lookup (video, VIMEO_VIDEO_WIDTH);
   if (str)
   {
-    grl_media_video_set_width (GRL_MEDIA_VIDEO (media), str_to_gint (str));
+    grl_media_set_width (media, str_to_gint (str));
   }
 
   str = g_hash_table_lookup (video, VIMEO_VIDEO_HEIGHT);
   if (str)
   {
-    grl_media_video_set_height (GRL_MEDIA_VIDEO (media), str_to_gint (str));
+    grl_media_set_height (media, str_to_gint (str));
   }
 }
 
@@ -433,11 +473,12 @@ grl_vimeo_source_supported_keys (GrlSource *source)
 				      GRL_METADATA_KEY_DESCRIPTION,
 				      GRL_METADATA_KEY_URL,
 				      GRL_METADATA_KEY_AUTHOR,
-                  GRL_METADATA_KEY_PUBLICATION_DATE,
+				      GRL_METADATA_KEY_PUBLICATION_DATE,
 				      GRL_METADATA_KEY_THUMBNAIL,
 				      GRL_METADATA_KEY_DURATION,
 				      GRL_METADATA_KEY_WIDTH,
 				      GRL_METADATA_KEY_HEIGHT,
+				      GRL_METADATA_KEY_EXTERNAL_URL,
 				      GRL_METADATA_KEY_INVALID);
   }
   return keys;
@@ -501,10 +542,10 @@ grl_vimeo_source_search (GrlSource *source,
 
   if (!ss->text) {
     /* Vimeo does not support searching all */
-    error =
-      g_error_new_literal (GRL_CORE_ERROR,
-                           GRL_CORE_ERROR_SEARCH_NULL_UNSUPPORTED,
-                           "Unable to execute search: non NULL search text is required");
+    error = g_error_new (GRL_CORE_ERROR,
+                         GRL_CORE_ERROR_SEARCH_NULL_UNSUPPORTED,
+                         _("Failed to search: %s"),
+                         _("non-NULL search text is required"));
     ss->callback (ss->source, ss->operation_id, NULL, 0, ss->user_data, error);
     g_error_free (error);
     return;

@@ -30,15 +30,18 @@
 #include "grl-tracker-source.h"
 #include "grl-tracker-source-cache.h"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <glib/gi18n-lib.h>
 #include <tracker-sparql.h>
 
 /* ---- Source information ---- */
 
 #define GRL_TRACKER_SOURCE_ID   "grl-tracker-source"
 #define GRL_TRACKER_SOURCE_NAME "Tracker"
-#define GRL_TRACKER_SOURCE_DESC                 \
-  "A plugin for searching multimedia "          \
-  "content using Tracker"
+#define GRL_TRACKER_SOURCE_DESC _("A plugin for searching multimedia content using Tracker")
 
 #define GRL_TRACKER_AUTHOR  "Igalia S.L."
 #define GRL_TRACKER_LICENSE "LGPL"
@@ -67,7 +70,6 @@ struct _GrlTrackerSourcePriv {
   gboolean notify_changes;
 
   GrlTrackerSourceState state;
-  guint notification_ref;
 };
 
 /**/
@@ -76,7 +78,6 @@ extern GrlPlugin *grl_tracker_plugin;
 
 /* shared data across  */
 extern GrlTrackerCache *grl_tracker_item_cache;
-extern GHashTable *grl_tracker_source_sources_modified;
 extern gboolean grl_tracker_upnp_present;
 
 /* tracker plugin config */

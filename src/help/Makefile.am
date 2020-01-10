@@ -1,18 +1,17 @@
 SUBDIRS = examples
 
-include $(top_srcdir)/gnome-doc-utils.make
-dist-hook: doc-dist-hook
+@YELP_HELP_RULES@
+include $(top_srcdir)/gtester.mk
 
-DOC_MODULE = grilo-plugins
-DOC_ENTITIES = legal.xml
-DOC_INCLUDES = ../examples/example-tmdb.c
-DOC_FIGURES =
-
-DOC_LINGUAS =
-
-
+HELP_ID = grilo-plugins
+HELP_FILES = grilo-plugins.xml
+HELP_EXTRA = legal.xml
+HELP_MEDIA = ../examples/example-tmdb.c
+HELP_LINGUAS =
 
 # For manual checking:
 XMLLINT = xmllint
 validate: $(srcdir)/C/grilo-plugins.xml
 	$(XMLLINT) --xinclude --postvalid --noout $<
+
+-include $(top_srcdir)/git.mk

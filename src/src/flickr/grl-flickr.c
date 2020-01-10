@@ -29,15 +29,21 @@
 #endif
 
 #include <grilo.h>
+#include <glib/gi18n-lib.h>
 #include <string.h>
 #include <stdlib.h>
+
+#ifdef GOA_ENABLED
+#define GOA_API_IS_SUBJECT_TO_CHANGE
+#include <goa/goa.h>
+#endif
 
 #include "grl-flickr.h"
 #include "gflickr.h"
 
-#define GRL_FLICKR_SOURCE_GET_PRIVATE(object)                           \
-  (G_TYPE_INSTANCE_GET_PRIVATE((object),                                \
-                               GRL_FLICKR_SOURCE_TYPE,                  \
+#define GRL_FLICKR_SOURCE_GET_PRIVATE(object)                          \
+  (G_TYPE_INSTANCE_GET_PRIVATE((object),                               \
+                               GRL_FLICKR_SOURCE_TYPE,                 \
                                GrlFlickrSourcePrivate))
 
 /* --------- Logging  -------- */
@@ -50,15 +56,15 @@ GRL_LOG_DOMAIN(flickr_log_domain);
 
 /* --- Plugin information --- */
 
-#define PLUGIN_ID   FLICKR_PLUGIN_ID
-
 #define PUBLIC_SOURCE_ID   "grl-flickr"
 #define PUBLIC_SOURCE_NAME "Flickr"
-#define PUBLIC_SOURCE_DESC "A source for browsing and searching Flickr photos"
+#define PUBLIC_SOURCE_DESC _("A source for browsing and searching Flickr photos")
 
 #define PERSONAL_SOURCE_ID "grl-flickr-%s"
-#define PERSONAL_SOURCE_NAME "%s's Flickr"
-#define PERSONAL_SOURCE_DESC "A source for browsing and searching %s' flickr photos"
+/* "%s" is a full user name, like "John Doe" */
+#define PERSONAL_SOURCE_NAME _("%s's Flickr")
+/* "%s" is a full user name, like "John Doe" */
+#define PERSONAL_SOURCE_DESC _("A source for browsing and searching %s's flickr photos")
 
 typedef struct {
   GrlSource *source;
@@ -78,6 +84,18 @@ struct _GrlFlickrSourcePrivate {
   gchar *user_id;
 };
 
+#ifdef GOA_ENABLED
+/*
+ * data passed when creating personal source
+ * when is GOA enabled, we need even goa_account_id, not only plugin
+ */
+struct token_cb_data {
+  GrlPlugin *plugin;
+  gchar     *goa_account_id;
+};
+#endif /* GOA_ENABLED */
+
+
 static void token_info_cb (GFlickr *f,
                            GHashTable *info,
                            gpointer user_data);
@@ -85,10 +103,20 @@ static void token_info_cb (GFlickr *f,
 static GrlFlickrSource *grl_flickr_source_public_new (const gchar *flickr_api_key,
                                                       const gchar *flickr_secret);
 
+#ifdef GOA_ENABLED
 static void grl_flickr_source_personal_new (GrlPlugin *plugin,
                                             const gchar *flickr_api_key,
                                             const gchar *flickr_secret,
-                                            const gchar *flickr_token);
+                                            const gchar *flickr_token,
+                                            const gchar *token_secret,
+                                            gchar       *goa_account_id);
+#else
+static void grl_flickr_source_personal_new (GrlPlugin *plugin,
+                                            const gchar *flickr_api_key,
+                                            const gchar *flickr_secret,
+                                            const gchar *flickr_token,
+                                            const gchar *token_secret);
+#endif /* GOA_ENABLED */
 
 static void grl_flickr_source_finalize (GObject *object);
 
@@ -108,6 +136,10 @@ static void grl_flickr_source_resolve (GrlSource *source,
 static void grl_flickr_source_search (GrlSource *source,
                                       GrlSourceSearchSpec *ss);
 
+#ifdef GOA_ENABLED
+static GList *grl_flickr_get_goa_multiple_config (GrlPlugin *plugin, gboolean public);
+#endif
+
 /* =================== Flickr Plugin  =============== */
 
 gboolean
@@ -115,40 +147,87 @@ grl_flickr_plugin_init (GrlRegistry *registry,
                         GrlPlugin *plugin,
                         GList *configs)
 {
-  gchar *flickr_key;
-  gchar *flickr_secret;
-  gchar *flickr_token;
+  gchar *flickr_key           = NULL;
+  gchar *flickr_secret        = NULL;
+  gchar *flickr_token         = NULL;
+  gchar *flickr_token_secret  = NULL;
+
+
   GrlConfig *config;
   gboolean public_source_created = FALSE;
 
   GRL_LOG_DOMAIN_INIT (flickr_log_domain, "flickr");
 
+#ifdef GOA_ENABLED
+  GRL_DEBUG ("GOA enabled");
+  gboolean create_public_from_goa = FALSE;
+  gchar *goa_account_id           = NULL;
+#endif
+
   GRL_DEBUG ("flickr_plugin_init");
 
-  if (!configs) {
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+
+ if (configs == NULL) {
+#ifdef GOA_ENABLED
+    GRL_DEBUG ("No user config passed.");
+    create_public_from_goa = TRUE;
+#else
     GRL_INFO ("Configuration not provided! Plugin not loaded");
     return FALSE;
+#endif /* GOA_ENABLED */
   }
+
+#ifdef GOA_ENABLED
+  /* When is GOA enabled, add all configs from GOA too */
+  GList *goa_config = grl_flickr_get_goa_multiple_config (plugin,
+                                                          create_public_from_goa);
+
+  if (goa_config == NULL)
+  {
+    GRL_INFO ("Cannot get flickr sources from GOA.");
+  }
+  else
+  {
+    configs = g_list_concat (configs, goa_config);
+  }
+#endif /* GOA_ENABLED */
 
   while (configs) {
     config = GRL_CONFIG (configs->data);
 
     flickr_key = grl_config_get_api_key (config);
     flickr_token = grl_config_get_api_token (config);
+    flickr_token_secret = grl_config_get_api_token_secret (config);
     flickr_secret = grl_config_get_api_secret (config);
 
     if (!flickr_key || !flickr_secret) {
       GRL_INFO ("Required API key or secret configuration not provdied. "
                 " Plugin not loaded");
-    } else if (flickr_token) {
+    } else if (flickr_token && flickr_token_secret) {
+#ifdef GOA_ENABLED
+      goa_account_id = grl_config_get_string (config, "goa-account-id");
+
       grl_flickr_source_personal_new (plugin,
                                       flickr_key,
                                       flickr_secret,
-                                      flickr_token);
+                                      flickr_token,
+                                      flickr_token_secret,
+                                      goa_account_id);
+#else
+      grl_flickr_source_personal_new (plugin,
+                                      flickr_key,
+                                      flickr_secret,
+                                      flickr_token,
+                                      flickr_token_secret);
+#endif /* GOA_ENABLED */
     } else if (public_source_created) {
       GRL_WARNING ("Only one public source can be created");
     } else {
-      GrlFlickrSource *source = grl_flickr_source_public_new (flickr_key, flickr_secret);
+      GrlFlickrSource *source = grl_flickr_source_public_new (flickr_key,
+                                                              flickr_secret);
       public_source_created = TRUE;
       grl_registry_register_source (registry,
                                     plugin,
@@ -156,12 +235,10 @@ grl_flickr_plugin_init (GrlRegistry *registry,
                                     NULL);
     }
 
-    if (flickr_key != NULL)
-      g_free (flickr_key);
-    if (flickr_token != NULL)
-      g_free (flickr_token);
-    if (flickr_secret != NULL)
-      g_free (flickr_secret);
+    g_clear_pointer (&flickr_key, g_free);
+    g_clear_pointer (&flickr_token, g_free);
+    g_clear_pointer (&flickr_secret, g_free);
+    g_clear_pointer (&flickr_token_secret, g_free);
 
     configs = g_list_next (configs);
   }
@@ -169,9 +246,18 @@ grl_flickr_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_flickr_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   FLICKR_PLUGIN_ID,
+                   "Flickr",
+                   "A plugin for browsing and searching Flickr photos",
+                   "Igalia S.L.",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_flickr_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== Flickr GObject ================ */
 
@@ -182,30 +268,63 @@ grl_flickr_source_public_new (const gchar *flickr_api_key,
                               const gchar *flickr_secret)
 {
   GrlFlickrSource *source;
+  const char *tags[] = {
+    "net:internet",
+    NULL
+  };
 
-  GRL_DEBUG ("grl_flickr_source_new");
+  GRL_DEBUG ("grl_flickr_public_source_new");
 
   source = g_object_new (GRL_FLICKR_SOURCE_TYPE,
                          "source-id", PUBLIC_SOURCE_ID,
                          "source-name", PUBLIC_SOURCE_NAME,
                          "source-desc", PUBLIC_SOURCE_DESC,
-                         "supported-media", GRL_MEDIA_TYPE_IMAGE,
+                         "supported-media", GRL_SUPPORTED_MEDIA_IMAGE,
+                         "source-tags", tags,
                          NULL);
-  source->priv->flickr = g_flickr_new (flickr_api_key, flickr_secret, NULL);
+  source->priv->flickr = g_flickr_new (flickr_api_key, flickr_secret,
+                                       NULL, NULL);
 
   return source;
 }
 
+#ifdef GOA_ENABLED
 static void
 grl_flickr_source_personal_new (GrlPlugin *plugin,
                                 const gchar *flickr_api_key,
                                 const gchar *flickr_secret,
-                                const gchar *flickr_token)
+                                const gchar *flickr_token,
+                                const gchar *flickr_token_secret,
+                                gchar       *goa_account_id)
+#else
+static void
+grl_flickr_source_personal_new (GrlPlugin *plugin,
+                                const gchar *flickr_api_key,
+                                const gchar *flickr_secret,
+                                const gchar *flickr_token,
+                                const gchar *flickr_token_secret)
+#endif /* GOA_ENABLED */
 {
   GFlickr *f;
 
-  f = g_flickr_new (flickr_api_key, flickr_secret, flickr_token);
-  g_flickr_auth_checkToken (f, flickr_token, token_info_cb, (gpointer) plugin);
+  GRL_DEBUG ("grl_flickr_personal_source_new");
+
+  f = g_flickr_new (flickr_api_key, flickr_secret,
+                    flickr_token, flickr_token_secret);
+
+#ifdef GOA_ENABLED
+  struct token_cb_data *data;
+
+  data = g_slice_new (struct token_cb_data);
+  data->plugin = plugin;
+  data->goa_account_id = goa_account_id;
+
+  g_flickr_auth_checkToken (f, flickr_token, token_info_cb,
+                            (gpointer) data);
+#else
+  g_flickr_auth_checkToken (f, flickr_token, token_info_cb,
+                            (gpointer) plugin);
+#endif /* GOA_ENABLED */
 }
 
 static void
@@ -254,13 +373,20 @@ token_info_cb (GFlickr *f,
                gpointer user_data)
 {
   GrlFlickrSource *source;
-  GrlPlugin *plugin = (GrlPlugin *) user_data;
   GrlRegistry *registry;
   gchar *fullname;
   gchar *source_desc;
   gchar *source_id;
   gchar *source_name;
   gchar *username;
+
+#ifdef GOA_ENABLED
+  struct token_cb_data *data = (struct token_cb_data *) user_data;
+  GrlPlugin *plugin = data->plugin;
+#else
+  GrlPlugin *plugin = (GrlPlugin *) user_data;
+#endif
+
 
   if (!info) {
     GRL_WARNING ("Wrong token!");
@@ -273,7 +399,23 @@ token_info_cb (GFlickr *f,
   username = g_hash_table_lookup (info, "user_username");
   fullname = g_hash_table_lookup (info, "user_fullname");
 
+  /* Set source id */
+#ifdef GOA_ENABLED
+  if (data->goa_account_id != NULL)
+  {
+    source_id = g_strdup_printf (PERSONAL_SOURCE_ID, data->goa_account_id);
+
+    g_free (data->goa_account_id);
+    g_slice_free (struct token_cb_data, data);
+  }
+  else
+  {
   source_id = g_strdup_printf (PERSONAL_SOURCE_ID, username);
+  }
+#else
+  source_id = g_strdup_printf (PERSONAL_SOURCE_ID, username);
+#endif /* GOA_ENABLED */
+
   source_name = g_strdup_printf (PERSONAL_SOURCE_NAME, fullname);
   source_desc = g_strdup_printf (PERSONAL_SOURCE_DESC, fullname);
 
@@ -304,13 +446,17 @@ token_info_cb (GFlickr *f,
 static void
 update_media (GrlMedia *media, GHashTable *photo)
 {
+  GrlRelatedKeys *relkeys;
+  gchar *image[2] = { NULL };
   gchar *author;
   gchar *date;
   gchar *description;
   gchar *id;
+  gchar *small;
   gchar *thumbnail;
   gchar *title;
   gchar *url;
+  gint i;
 
   author = g_hash_table_lookup (photo, "owner_realname");
   if (!author) {
@@ -359,19 +505,44 @@ update_media (GrlMedia *media, GHashTable *photo)
     grl_media_set_id (media, id);
   }
 
-  if (thumbnail) {
-    grl_media_set_thumbnail (media, thumbnail);
-    g_free (thumbnail);
-  }
-
   if (title && title[0] != '\0') {
     grl_media_set_title (media, title);
   }
 
   if (url) {
+    gchar *content_type;
+
     grl_media_set_url (media, url);
+
+    content_type = g_content_type_guess (url, NULL, 0, NULL);
+    if (content_type) {
+      gchar *mime;
+
+      mime = g_content_type_get_mime_type (content_type);
+      if (mime) {
+        grl_media_set_mime (media, mime);
+        g_free (mime);
+      }
+      g_free (content_type);
+    }
     g_free (url);
   }
+
+  small = g_flickr_photo_url_small (NULL, photo);
+  image[0] = small;
+  image[1] = thumbnail;
+
+  for (i = 0; i < G_N_ELEMENTS (image); i++) {
+    if (image[i]) {
+      relkeys = grl_related_keys_new_with_keys (GRL_METADATA_KEY_THUMBNAIL,
+                                                image[i],
+                                                NULL);
+      grl_data_add_related_keys (GRL_DATA (media), relkeys);
+    }
+  }
+
+  g_free (small);
+  g_free (thumbnail);
 }
 
 static void
@@ -468,7 +639,7 @@ photosetslist_cb (GFlickr *f, GList *photosets, gpointer user_data)
 
   while (photosets && count > 0) {
     count--;
-    media = grl_media_box_new ();
+    media = grl_media_container_new ();
     grl_media_set_id (media,
                       g_hash_table_lookup (photosets->data,
                                            "photoset_id"));
@@ -514,7 +685,9 @@ photosetsphotos_cb (GFlickr *f, GList *photolist, gpointer user_data)
 
   while (photolist && od->count) {
     media_type = g_hash_table_lookup (photolist->data, "photo_media");
-    if (strcmp (media_type, "photo") == 0) {
+    if (media_type == NULL) {
+      media = grl_media_new ();
+    } else if (strcmp (media_type, "photo") == 0) {
       media = grl_media_image_new ();
     } else {
       media = grl_media_video_new ();
@@ -535,7 +708,8 @@ photosetsphotos_cb (GFlickr *f, GList *photolist, gpointer user_data)
   if (od->count) {
     od->offset = 0;
     od->page++;
-    g_flickr_photosets_getPhotos (f, od->text, od->page, photosetsphotos_cb, od);
+    g_flickr_photosets_getPhotos (f, od->text, od->page,
+                                  photosetsphotos_cb, od);
   } else {
     g_slice_free (OperationData, od);
   }
@@ -549,7 +723,8 @@ gettags_cb (GFlickr *f, GList *taglist, gpointer user_data)
   gint count;
 
   /* Go to offset element */
-  taglist = g_list_nth (taglist, grl_operation_options_get_skip (bs->options));
+  taglist = g_list_nth (taglist,
+                        grl_operation_options_get_skip (bs->options));
 
   /* No more elements can be sent */
   if (!taglist) {
@@ -566,7 +741,7 @@ gettags_cb (GFlickr *f, GList *taglist, gpointer user_data)
   count = g_list_length (taglist);
   while (taglist) {
     count--;
-    media = grl_media_box_new ();
+    media = grl_media_container_new ();
     grl_media_set_id (media, taglist->data);
     grl_media_set_title (media, taglist->data);
     bs->callback (bs->source,
@@ -579,6 +754,101 @@ gettags_cb (GFlickr *f, GList *taglist, gpointer user_data)
   }
 }
 
+#ifdef GOA_ENABLED
+static GList *
+grl_flickr_get_goa_multiple_config (GrlPlugin *plugin, gboolean public)
+{
+  GList *tmp;
+  GList *list = NULL;
+  GError *error = NULL;
+  GrlConfig *conf = NULL;
+  GList *configs = NULL;
+
+  gchar *access_token;
+  gchar *token_secret;
+
+  gboolean public_created = FALSE;
+
+  GoaAccount *acc = NULL;
+  GoaOAuthBased *oauth = NULL;
+  GoaClient *cl = goa_client_new_sync (NULL, &error);
+
+  if (error != NULL)
+  {
+    GRL_ERROR ("%s\n", error->message);
+    return NULL;
+  }
+
+  list = goa_client_get_accounts (cl);
+  tmp = g_list_first (list);
+
+  /* find flickr one's and get tokens */
+  while (tmp != NULL)
+  {
+    acc = goa_object_peek_account (tmp->data);
+
+    if (strcmp (goa_account_get_provider_type (acc), "flickr") == 0)
+    {
+      oauth = goa_object_peek_oauth_based (tmp->data);
+
+      if (oauth != NULL)
+      {
+        conf = grl_config_new (grl_plugin_get_id (plugin),
+                               NULL);
+
+        /* Consumer data */
+        grl_config_set_api_key (conf,
+                                goa_oauth_based_get_consumer_key (oauth));
+        grl_config_set_api_secret (conf,
+                                   goa_oauth_based_get_consumer_secret (oauth));
+
+        /* enable recognize that this config is from goa */
+        grl_config_set_string (conf, "goa-account-id",
+                                      goa_account_get_id (acc));
+
+        /* if public == TRUE, create one public source */
+        if (public == TRUE && public_created == FALSE)
+        {
+          configs = g_list_append (configs, conf);
+          public_created = TRUE;
+
+          continue; /* Use this personal source again, but this time with tokens */
+        }
+
+        /* Get Access Token */
+        if (! goa_oauth_based_call_get_access_token_sync (oauth,
+                                                          &access_token,
+                                                          &token_secret,
+                                                          NULL, NULL,
+                                                          &error))
+        {
+
+          /* No access token doesn't mean error */
+          GRL_INFO ("Access token: %s\n", error->message);
+          g_error_free (error);
+        }
+        else
+        {
+          grl_config_set_api_token (conf, access_token);
+          grl_config_set_api_token_secret (conf, token_secret);
+
+          g_clear_pointer (&access_token, g_free);
+          g_clear_pointer (&token_secret, g_free);
+        }
+
+        configs = g_list_append (configs, conf);
+      }
+    }
+    tmp = g_list_next (tmp);
+  }
+
+  g_object_unref (cl);
+  g_list_free_full (list, g_object_unref);
+
+  return configs;
+}
+#endif /* FLICKR_GOA_ENABLED */
+
 /* ================== API Implementation ================ */
 
 static const GList *
@@ -590,6 +860,7 @@ grl_flickr_source_supported_keys (GrlSource *source)
                                       GRL_METADATA_KEY_CREATION_DATE,
                                       GRL_METADATA_KEY_DESCRIPTION,
                                       GRL_METADATA_KEY_ID,
+                                      GRL_METADATA_KEY_MIME,
                                       GRL_METADATA_KEY_THUMBNAIL,
                                       GRL_METADATA_KEY_TITLE,
                                       GRL_METADATA_KEY_URL,
@@ -614,7 +885,9 @@ grl_flickr_source_public_browse (GrlSource *source,
   if (!container_id) {
     /* Get hot tags list. List is limited up to HOTLIST_MAX tags */
     if (skip >= HOTLIST_MAX) {
-      bs->callback (bs->source, bs->operation_id, NULL, 0, bs->user_data, NULL);
+      bs->callback (bs->source, bs->operation_id,
+                    NULL, 0,
+                    bs->user_data, NULL);
     } else {
       request_size = CLAMP (skip + count, 1, HOTLIST_MAX);
       g_flickr_tags_getHotList (f, request_size, gettags_cb, bs);
@@ -683,7 +956,8 @@ grl_flickr_source_personal_browse (GrlSource *source,
     od->count = count;
     od->operation_id = bs->operation_id;
 
-    g_flickr_photosets_getPhotos (f, container_id, od->page, photosetsphotos_cb, od);
+    g_flickr_photosets_getPhotos (f, container_id, od->page,
+                                  photosetsphotos_cb, od);
   }
 }
 
@@ -705,12 +979,13 @@ grl_flickr_source_resolve (GrlSource *source,
   const gchar *id;
 
   if (!rs->media || (id = grl_media_get_id (rs->media)) == NULL) {
-    rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
+    rs->callback (rs->source, rs->operation_id,
+                  rs->media, rs->user_data, NULL);
     return;
   }
 
   g_flickr_photos_getInfo (GRL_FLICKR_SOURCE (source)->priv->flickr,
-                           atol (id),
+                           id,
                            getInfo_cb,
                            rs);
 }

@@ -27,6 +27,7 @@
 #endif
 
 #include <grilo.h>
+#include <glib/gi18n-lib.h>
 #include <net/grl-net.h>
 #include <libxml/parser.h>
 #include <libxml/xmlmemory.h>
@@ -55,7 +56,7 @@ GRL_LOG_DOMAIN_STATIC(jamendo_log_domain);
 
 /* ---- Jamendo Web API  ---- */
 
-#define JAMENDO_BASE_ENTRY "http://api.jamendo.com/get2"
+#define JAMENDO_BASE_ENTRY "https://api.jamendo.com/get2"
 #define JAMENDO_FORMAT     "xml"
 #define JAMENDO_RANGE      "n=%u&pn=%u"
 
@@ -85,11 +86,9 @@ GRL_LOG_DOMAIN_STATIC(jamendo_log_domain);
 
 /* --- Plugin information --- */
 
-#define PLUGIN_ID   JAMENDO_PLUGIN_ID
-
 #define SOURCE_ID   "grl-jamendo"
 #define SOURCE_NAME "Jamendo"
-#define SOURCE_DESC "A source for browsing and searching Jamendo music"
+#define SOURCE_DESC _("A source for browsing and searching Jamendo music")
 
 enum {
   RESOLVE,
@@ -140,22 +139,24 @@ typedef struct {
   gboolean cancelled;
 } XmlParseEntries;
 
+/* Note: you'll also need to update
+ * grl_jamendo_source_browse() */
 struct Feeds {
   gchar *name;
   JamendoCategory cat;
-  gchar *url;
+  const gchar *url;
 } feeds[] = {
-  { "Albums of the week", JAMENDO_ALBUM_CAT,
+  { N_("Albums of the week"), JAMENDO_ALBUM_CAT,
     JAMENDO_GET_ALBUMS "&order=ratingweek_desc", },
-  { "Tracks of the week", JAMENDO_TRACK_CAT,
+  { N_("Tracks of the week"), JAMENDO_TRACK_CAT,
     JAMENDO_GET_TRACKS "&order=ratingweek_desc", },
-  { "New releases", JAMENDO_TRACK_CAT,
+  { N_("New releases"), JAMENDO_TRACK_CAT,
     JAMENDO_GET_TRACKS "&order=releasedate_desc", },
-  { "Top artists", JAMENDO_ARTIST_CAT,
+  { N_("Top artists"), JAMENDO_ARTIST_CAT,
     JAMENDO_GET_ARTISTS "&order=rating_desc", },
-  { "Top albums", JAMENDO_ALBUM_CAT,
+  { N_("Top albums"), JAMENDO_ALBUM_CAT,
     JAMENDO_GET_ALBUMS "&order=rating_desc", },
-  { "Top tracks", JAMENDO_TRACK_CAT,
+  { N_("Top tracks"), JAMENDO_TRACK_CAT,
     JAMENDO_GET_TRACKS "&order=rating_desc", },
 };
 
@@ -203,6 +204,10 @@ grl_jamendo_plugin_init (GrlRegistry *registry,
 
   GRL_TRACE ();
 
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+
   GrlJamendoSource *source = grl_jamendo_source_new ();
   grl_registry_register_source (registry,
                                 plugin,
@@ -211,21 +216,36 @@ grl_jamendo_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_jamendo_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   JAMENDO_PLUGIN_ID,
+                   "Jamendo",
+                   "A plugin for browsing and searching Jamendo videos",
+                   "Igalia S.L.",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_jamendo_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== Jamendo GObject ================ */
 
 static GrlJamendoSource *
 grl_jamendo_source_new (void)
 {
+  const char *tags[] = {
+    "net:internet",
+    NULL
+  };
+
   GRL_TRACE();
   return g_object_new (GRL_JAMENDO_SOURCE_TYPE,
 		       "source-id", SOURCE_ID,
 		       "source-name", SOURCE_NAME,
 		       "source-desc", SOURCE_DESC,
-		       "supported-media", GRL_MEDIA_TYPE_AUDIO,
+		       "supported-media", GRL_SUPPORTED_MEDIA_AUDIO,
+		       "source-tags", tags,
 		       NULL);
 }
 
@@ -237,12 +257,9 @@ grl_jamendo_source_finalize (GObject *object)
   GrlJamendoSource *self;
 
   self = GRL_JAMENDO_SOURCE (object);
-  if (self->priv->wc)
-    g_object_unref (self->priv->wc);
 
-  if (self->priv->cancellable
-      && G_IS_CANCELLABLE (self->priv->cancellable))
-    g_object_unref (self->priv->cancellable);
+  g_clear_object (&self->priv->wc);
+  g_clear_object (&self->priv->cancellable);
 
   G_OBJECT_CLASS (grl_jamendo_source_parent_class)->finalize (object);
 }
@@ -326,24 +343,24 @@ xml_parse_result (const gchar *str, GError **error, XmlParseEntries *xpe)
   doc = xmlReadMemory (str, strlen (str), NULL, NULL,
                        XML_PARSE_RECOVER | XML_PARSE_NOBLANKS);
   if (!doc) {
-    *error = g_error_new (GRL_CORE_ERROR,
-			  GRL_CORE_ERROR_BROWSE_FAILED,
-			  "Failed to parse Jamendo's response");
+    *error = g_error_new_literal (GRL_CORE_ERROR,
+                                  GRL_CORE_ERROR_BROWSE_FAILED,
+                                  _("Failed to parse response"));
     goto free_resources;
   }
 
   node = xmlDocGetRootElement (doc);
   if (!node) {
-    *error = g_error_new (GRL_CORE_ERROR,
-			  GRL_CORE_ERROR_BROWSE_FAILED,
-			  "Empty response from Jamendo");
+    *error = g_error_new_literal (GRL_CORE_ERROR,
+                                  GRL_CORE_ERROR_BROWSE_FAILED,
+                                  _("Empty response"));
     goto free_resources;
   }
 
   if (xmlStrcmp (node->name, (const xmlChar *) "data")) {
-    *error = g_error_new (GRL_CORE_ERROR,
-			  GRL_CORE_ERROR_BROWSE_FAILED,
-			  "Unexpected response from Jamendo: no data");
+    *error = g_error_new_literal (GRL_CORE_ERROR,
+                                  GRL_CORE_ERROR_BROWSE_FAILED,
+                                  _("Empty response"));
     goto free_resources;
   }
 
@@ -527,8 +544,7 @@ update_media_from_entry (GrlMedia *media, const Entry *entry)
     }
 
     if (entry->album_genre) {
-      grl_media_audio_set_genre (GRL_MEDIA_AUDIO (media),
-                                 entry->album_genre);
+      grl_media_set_genre (media, entry->album_genre);
     }
 
     if (entry->track_url) {
@@ -571,7 +587,7 @@ xml_parse_entries_idle (gpointer user_data)
     if (entry->category == JAMENDO_TRACK_CAT) {
       media = grl_media_audio_new ();
     } else {
-      media = grl_media_box_new ();
+      media = grl_media_container_new ();
     }
 
     update_media_from_entry (media, entry);
@@ -658,7 +674,7 @@ read_done_cb (GObject *source_object,
 
     error = g_error_new (GRL_CORE_ERROR,
                          error_code,
-                         "Failed to connect Jamendo: '%s'",
+                         _("Failed to connect: %s"),
                          wc_error->message);
     g_error_free (wc_error);
     goto invoke_cb;
@@ -682,14 +698,14 @@ read_done_cb (GObject *source_object,
       free_entry (entry);
       goto invoke_cb;
     } else {
-      g_idle_add (xml_parse_entries_idle, xpe);
+      guint id = g_idle_add (xml_parse_entries_idle, xpe);
+      g_source_set_name_by_id (id, "[jamendo] xml_parse_entries_idle");
     }
   } else {
     if (xpe->type == RESOLVE) {
-      error = g_error_new (GRL_CORE_ERROR,
-                           GRL_CORE_ERROR_RESOLVE_FAILED,
-                           "Unable to get information: '%s'",
-                           grl_media_get_id (xpe->spec.rs->media));
+      error = g_error_new_literal (GRL_CORE_ERROR,
+                                   GRL_CORE_ERROR_RESOLVE_FAILED,
+                                   _("Failed to parse response"));
     }
     goto invoke_cb;
   }
@@ -732,9 +748,7 @@ read_done_cb (GObject *source_object,
   }
 
   g_slice_free (XmlParseEntries, xpe);
-  if (error) {
-    g_error_free (error);
-  }
+  g_clear_error (&error);
 }
 
 static void
@@ -759,7 +773,7 @@ static void
 update_media_from_root (GrlMedia *media)
 {
   grl_media_set_title (media, JAMENDO_ROOT_NAME);
-  grl_media_box_set_childcount (GRL_MEDIA_BOX (media), 3);
+  grl_media_set_childcount (media, 3);
 }
 
 static void
@@ -767,7 +781,7 @@ update_media_from_artists (GrlMedia *media)
 {
   Entry entry = {
     .category = JAMENDO_ARTIST_CAT,
-    .artist_name = "Artists",
+    .artist_name = _("Artists"),
   };
 
   update_media_from_entry (media, &entry);
@@ -778,7 +792,7 @@ update_media_from_albums (GrlMedia *media)
 {
   Entry entry = {
     .category = JAMENDO_ALBUM_CAT,
-    .album_name = "Albums",
+    .album_name = _("Albums"),
   };
 
   update_media_from_entry (media, &entry);
@@ -789,11 +803,11 @@ update_media_from_feeds (GrlMedia *media)
 {
   Entry entry = {
     .category = JAMENDO_FEEDS_CAT,
-    .feed_name = "Feeds",
+    .feed_name = _("Feeds"),
   };
 
   update_media_from_entry (media, &entry);
-  grl_media_box_set_childcount (GRL_MEDIA_BOX (media), G_N_ELEMENTS(feeds));
+  grl_media_set_childcount (media, G_N_ELEMENTS(feeds));
 }
 
 static void
@@ -805,31 +819,29 @@ send_toplevel_categories (GrlSourceBrowseSpec *bs)
   gint count = grl_operation_options_get_count (bs->options);
 
   /* Check if all elements must be skipped */
-  if (skip > 1 || count == 0) {
+  if (skip > 2 || count == 0) {
     bs->callback (bs->source, bs->operation_id, NULL, 0, bs->user_data, NULL);
     return;
   }
 
-  remaining = count;
+  count = MIN (count, 3);
+  remaining = MIN (count, 3 - skip);
 
-  if (skip == 0) {
-    media = grl_media_box_new ();
-    update_media_from_artists (media);
+  while (remaining > 0) {
+    media = grl_media_container_new ();
+    switch (skip) {
+    case 0:
+      update_media_from_artists (media);
+      break;
+    case 1:
+      update_media_from_albums (media);
+      break;
+    default:
+      update_media_from_feeds (media);
+    }
     remaining--;
+    skip++;
     bs->callback (bs->source, bs->operation_id, media, remaining, bs->user_data, NULL);
-  }
-
-  if (remaining) {
-    media = grl_media_box_new ();
-    update_media_from_albums (media);
-    bs->callback (bs->source, bs->operation_id, media, remaining, bs->user_data, NULL);
-    remaining--;
-  }
-
-  if (remaining) {
-    media = grl_media_box_new ();
-    update_media_from_feeds (media);
-    bs->callback (bs->source, bs->operation_id, media, 0, bs->user_data, NULL);
   }
 }
 
@@ -842,7 +854,7 @@ update_media_from_feed (GrlMedia *media, int i)
   grl_media_set_id (media, id);
   g_free (id);
 
-  grl_media_set_title (media, feeds[i].name);
+  grl_media_set_title (media, g_dgettext (GETTEXT_PACKAGE, feeds[i].name));
 
 }
 
@@ -864,7 +876,7 @@ send_feeds (GrlSourceBrowseSpec *bs)
     for (i = skip; remaining > 0 && i < G_N_ELEMENTS (feeds); i++) {
       GrlMedia *media;
 
-      media = grl_media_box_new ();
+      media = grl_media_container_new ();
       update_media_from_feed (media, i);
       remaining--;
       bs->callback (bs->source,
@@ -965,7 +977,7 @@ grl_jamendo_source_resolve (GrlSource *source,
                          GRL_METADATA_KEY_ID)) {
     /* Get info from root */
     if (!rs->media) {
-      rs->media = grl_media_box_new ();
+      rs->media = grl_media_container_new ();
     }
     update_media_from_root (rs->media);
   } else {
@@ -975,7 +987,7 @@ grl_jamendo_source_resolve (GrlSource *source,
     if (g_strv_length (id_split) == 0) {
       error = g_error_new (GRL_CORE_ERROR,
                            GRL_CORE_ERROR_RESOLVE_FAILED,
-                           "Invalid id: '%s'",
+                           _("Invalid identifier %s"),
                            id);
       goto send_error;
     }
@@ -1020,7 +1032,7 @@ grl_jamendo_source_resolve (GrlSource *source,
       } else {
         error = g_error_new (GRL_CORE_ERROR,
                              GRL_CORE_ERROR_RESOLVE_FAILED,
-                             "Invalid id: '%s'",
+                             _("Invalid identifier %s"),
                              id);
         g_strfreev (id_split);
         goto send_error;
@@ -1034,7 +1046,8 @@ grl_jamendo_source_resolve (GrlSource *source,
         if (errno != 0 || (i <= 0 && i > G_N_ELEMENTS (feeds))) {
           error = g_error_new (GRL_CORE_ERROR,
                                GRL_CORE_ERROR_RESOLVE_FAILED,
-                               "Invalid cat id: '%s'", id_split[1]);
+                               _("Invalid category identifier %s"),
+                               id_split[1]);
           g_strfreev (id_split);
           goto send_error;
         }
@@ -1046,16 +1059,14 @@ grl_jamendo_source_resolve (GrlSource *source,
     } else {
       error = g_error_new (GRL_CORE_ERROR,
                            GRL_CORE_ERROR_RESOLVE_FAILED,
-                           "Invalid id: '%s'",
+                           _("Invalid identifier %s"),
                            id);
       g_strfreev (id_split);
       goto send_error;
     }
   }
 
-  if (id_split) {
-    g_strfreev (id_split);
-  }
+  g_clear_pointer (&id_split, g_strfreev);
 
   if (url) {
     xpe = g_slice_new0 (XmlParseEntries);
@@ -1089,7 +1100,7 @@ grl_jamendo_source_browse (GrlSource *source,
   GError *error = NULL;
   guint page_size;
   guint page_number;
-  guint page_offset;
+  guint page_offset = 0;
   gint count = grl_operation_options_get_count (bs->options);
   guint skip = grl_operation_options_get_skip (bs->options);
 
@@ -1108,7 +1119,7 @@ grl_jamendo_source_browse (GrlSource *source,
   if (g_strv_length (container_split) == 0) {
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_BROWSE_FAILED,
-                         "Invalid container-id: '%s'",
+                         _("Invalid container identifier %s"),
                          container_id);
   } else {
     category = atoi (container_split[0]);
@@ -1165,10 +1176,46 @@ grl_jamendo_source_browse (GrlSource *source,
 
         feed_id = atoi (container_split[1]);
         jamendo_keys = get_jamendo_keys (feeds[feed_id].cat);
-        url = g_strdup_printf (feeds[feed_id].url,
-                               jamendo_keys,
-                               page_size,
-                               page_number);
+        switch (feed_id) {
+        case 0:
+          url = g_strdup_printf (JAMENDO_GET_ALBUMS "&order=ratingweek_desc",
+                                 jamendo_keys,
+                                 page_size,
+                                 page_number);
+          break;
+        case 1:
+          url = g_strdup_printf (JAMENDO_GET_TRACKS "&order=ratingweek_desc",
+                                 jamendo_keys,
+                                 page_size,
+                                 page_number);
+          break;
+        case 2:
+          url = g_strdup_printf (JAMENDO_GET_TRACKS "&order=releasedate_desc",
+                                 jamendo_keys,
+                                 page_size,
+                                 page_number);
+          break;
+        case 3:
+          url = g_strdup_printf (JAMENDO_GET_ARTISTS "&order=rating_desc",
+                                 jamendo_keys,
+                                 page_size,
+                                 page_number);
+          break;
+        case 4:
+          url = g_strdup_printf (JAMENDO_GET_ALBUMS "&order=rating_desc",
+                                 jamendo_keys,
+                                 page_size,
+                                 page_number);
+          break;
+        case 5:
+          url = g_strdup_printf (JAMENDO_GET_TRACKS "&order=rating_desc",
+                                 jamendo_keys,
+                                 page_size,
+                                 page_number);
+          break;
+        default:
+          g_assert_not_reached ();
+        }
         g_free (jamendo_keys);
       } else {
         send_feeds (bs);
@@ -1178,12 +1225,12 @@ grl_jamendo_source_browse (GrlSource *source,
     } else if (category == JAMENDO_TRACK_CAT) {
       error = g_error_new (GRL_CORE_ERROR,
                            GRL_CORE_ERROR_BROWSE_FAILED,
-                           "Cannot browse through a track: '%s'",
+                           _("Failed to browse: %s is a track"),
                            container_id);
     } else {
       error = g_error_new (GRL_CORE_ERROR,
                            GRL_CORE_ERROR_BROWSE_FAILED,
-                           "Invalid container-id: '%s'",
+                           _("Invalid container identifier %s"),
                            container_id);
     }
   }
@@ -1203,9 +1250,7 @@ grl_jamendo_source_browse (GrlSource *source,
 
   read_url_async (GRL_JAMENDO_SOURCE (source), url, xpe);
   g_free (url);
-  if (container_split) {
-    g_strfreev (container_split);
-  }
+  g_clear_pointer (&container_split, g_strfreev);
 }
 
 /*
@@ -1227,7 +1272,6 @@ grl_jamendo_source_query (GrlSource *source,
   gchar *term = NULL;
   gchar *url;
   gchar *jamendo_keys = NULL;
-  gchar *query = NULL;
   XmlParseEntries *xpe = NULL;
   guint page_size;
   guint page_number;
@@ -1240,24 +1284,9 @@ grl_jamendo_source_query (GrlSource *source,
   if (!parse_query (qs->query, &category, &term)) {
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_QUERY_FAILED,
-                         "Query malformed: '%s'",
+                         _("Malformed query \"%s\""),
                          qs->query);
     goto send_error;
-  }
-
-  jamendo_keys = get_jamendo_keys (category);
-  switch (category) {
-  case JAMENDO_ARTIST_CAT:
-    query = JAMENDO_SEARCH_ARTIST;
-    break;
-  case JAMENDO_ALBUM_CAT:
-    query = JAMENDO_SEARCH_ALBUM;
-    break;
-  case JAMENDO_TRACK_CAT:
-    query = JAMENDO_SEARCH_TRACK;
-    break;
-  default:
-    g_return_if_reached ();
   }
 
   grl_paging_translate (skip,
@@ -1267,11 +1296,33 @@ grl_jamendo_source_query (GrlSource *source,
                         &page_number,
                         &page_offset);
 
-  url = g_strdup_printf (query,
-                         jamendo_keys,
-                         page_size,
-                         page_number,
-                         term);
+  jamendo_keys = get_jamendo_keys (category);
+  switch (category) {
+  case JAMENDO_ARTIST_CAT:
+    url = g_strdup_printf (JAMENDO_SEARCH_ARTIST,
+                           jamendo_keys,
+                           page_size,
+                           page_number,
+                           term);
+    break;
+  case JAMENDO_ALBUM_CAT:
+    url = g_strdup_printf (JAMENDO_SEARCH_ALBUM,
+                           jamendo_keys,
+                           page_size,
+                           page_number,
+                           term);
+    break;
+  case JAMENDO_TRACK_CAT:
+    url = g_strdup_printf (JAMENDO_SEARCH_TRACK,
+                           jamendo_keys,
+                           page_size,
+                           page_number,
+                           term);
+    break;
+  default:
+    g_return_if_reached ();
+  }
+
   g_free (term);
   g_free (jamendo_keys);
 

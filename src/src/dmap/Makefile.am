@@ -5,37 +5,59 @@
 #
 # Copyright (C) 2011 W. Michael Petullo. All rights reserved.
 
-ext_LTLIBRARIES	= libgrldmap.la
+include $(top_srcdir)/gtester.mk
 
-libgrldmap_la_CFLAGS =	\
-	$(DEPS_DMAP_CFLAGS)
+ext_LTLIBRARIES	= libgrldaap.la libgrldpap.la
+extdir			= $(GRL_PLUGINS_DIR)
 
-libgrldmap_la_LIBADD =	\
+libgrldaap_la_CFLAGS =	\
+	$(DEPS_DMAP_CFLAGS)	\
+	-DG_LOG_DOMAIN=\"GrlDmap\" \
+	-DLOCALEDIR=\"$(localedir)\"
+
+libgrldaap_la_LIBADD =	\
 	$(DEPS_DMAP_LIBS)
 
-libgrldmap_la_LDFLAGS =	\
+libgrldaap_la_LDFLAGS =	\
 	-no-undefined			\
 	-module					\
 	-avoid-version
 
-libgrldmap_la_SOURCES =				\
-	grl-dmap.c							\
-	grl-dmap.h							\
-	simple-daap-record.c				\
-	simple-daap-record.h				\
-	simple-daap-record-factory.c	\
-	simple-daap-record-factory.h	\
-	simple-dmap-db.c					\
-	simple-dmap-db.h
+libgrldaap_la_SOURCES =				\
+	grl-common.c						\
+	grl-common.h						\
+	grl-daap.c							\
+	grl-daap.h							\
+	grl-daap-record.c				\
+	grl-daap-record.h				\
+	grl-daap-record-factory.c	\
+	grl-daap-record-factory.h	\
+	grl-daap-db.c					\
+	grl-daap-db.h
 
-extdir			= $(GRL_PLUGINS_DIR)
-dmapxmldir		= $(GRL_PLUGINS_DIR)
-dmapxml_DATA	= $(DMAP_PLUGIN_ID).xml
+libgrldpap_la_CFLAGS =	\
+	$(DEPS_DMAP_CFLAGS)	\
+	-DG_LOG_DOMAIN=\"GrlDmap\" \
+	-DLOCALEDIR=\"$(localedir)\"
 
-EXTRA_DIST      = $(dmapxml_DATA)
+libgrldpap_la_LIBADD =	\
+	$(DEPS_DMAP_LIBS)
 
-MAINTAINERCLEANFILES =	\
-	*.in						\
-	*~
+libgrldpap_la_LDFLAGS =	\
+	-no-undefined			\
+	-module					\
+	-avoid-version
 
-DISTCLEANFILES = $(MAINTAINERCLEANFILES)
+libgrldpap_la_SOURCES =				\
+	grl-common.c						\
+	grl-common.h						\
+	grl-dpap.c							\
+	grl-dpap.h							\
+	grl-dpap-record.c				\
+	grl-dpap-record.h				\
+	grl-dpap-record-factory.c	\
+	grl-dpap-record-factory.h	\
+	grl-dpap-db.c					\
+	grl-dpap-db.h
+
+-include $(top_srcdir)/git.mk

@@ -69,7 +69,6 @@ static void grl_tracker_source_finalize (GObject *object);
 
 /* shared data across  */
 GrlTrackerCache *grl_tracker_item_cache;
-GHashTable *grl_tracker_source_sources_modified;
 GHashTable *grl_tracker_source_sources;
 
 /* ================== TrackerSource GObject ================ */
@@ -110,8 +109,10 @@ grl_tracker_source_class_init (GrlTrackerSourceClass * klass)
   source_class->browse              = grl_tracker_source_browse;
   source_class->notify_change_start = grl_tracker_source_change_start;
   source_class->notify_change_stop  = grl_tracker_source_change_stop;
+  source_class->supported_operations = grl_tracker_source_supported_operations;
   source_class->get_caps            = grl_tracker_source_get_caps;
-
+  source_class->test_media_from_uri = grl_tracker_source_test_media_from_uri;
+  source_class->media_from_uri      = grl_tracker_source_get_media_from_uri;
 
   g_object_class_install_property (g_class,
                                    PROP_TRACKER_CONNECTION,
@@ -152,8 +153,8 @@ grl_tracker_source_finalize (GObject *object)
   GrlTrackerSource *self;
 
   self = GRL_TRACKER_SOURCE (object);
-  if (self->priv->tracker_connection)
-    g_object_unref (self->priv->tracker_connection);
+
+  g_clear_object (&self->priv->tracker_connection);
 
   G_OBJECT_CLASS (grl_tracker_source_parent_class)->finalize (object);
 }
@@ -169,14 +170,12 @@ grl_tracker_source_set_property (GObject      *object,
 
   switch (propid) {
     case PROP_TRACKER_CONNECTION:
-      if (priv->tracker_connection != NULL)
-        g_object_unref (G_OBJECT (priv->tracker_connection));
+      g_clear_object (&priv->tracker_connection);
       priv->tracker_connection = g_object_ref (g_value_get_object (value));
       break;
 
     case PROP_TRACKER_DATASOURCE:
-      if (priv->tracker_datasource != NULL)
-        g_free (priv->tracker_datasource);
+      g_clear_pointer (&priv->tracker_datasource, g_free);
       priv->tracker_datasource = g_strdup (g_value_get_string (value));
       break;
 
@@ -216,25 +215,17 @@ grl_tracker_add_source (GrlTrackerSource *source)
 {
   GrlTrackerSourcePriv *priv = GRL_TRACKER_SOURCE_GET_PRIVATE (source);
 
-  GRL_DEBUG ("====================>add source '%s' count=%u",
-             grl_source_get_name (GRL_SOURCE (source)),
-             priv->notification_ref);
+  GRL_DEBUG ("====================>add source '%s'",
+             grl_source_get_name (GRL_SOURCE (source)));
 
-  if (priv->notification_ref > 0) {
-    priv->notification_ref--;
-  }
-  if (priv->notification_ref == 0) {
-    g_hash_table_remove (grl_tracker_source_sources_modified,
-                         grl_tracker_source_get_tracker_source (source));
-    g_hash_table_insert (grl_tracker_source_sources,
-                         (gpointer) grl_tracker_source_get_tracker_source (source),
-                         source);
-    priv->state = GRL_TRACKER_SOURCE_STATE_RUNNING;
-    grl_registry_register_source (grl_registry_get_default (),
-                                  grl_tracker_plugin,
-                                  GRL_SOURCE (source),
-                                  NULL);
-  }
+  g_hash_table_insert (grl_tracker_source_sources,
+                       (gpointer) grl_tracker_source_get_tracker_source (source),
+                       g_object_ref (source));
+  priv->state = GRL_TRACKER_SOURCE_STATE_RUNNING;
+  grl_registry_register_source (grl_registry_get_default (),
+                                grl_tracker_plugin,
+                                GRL_SOURCE (g_object_ref (source)),
+                                NULL);
 }
 
 void
@@ -242,23 +233,16 @@ grl_tracker_del_source (GrlTrackerSource *source)
 {
   GrlTrackerSourcePriv *priv = GRL_TRACKER_SOURCE_GET_PRIVATE (source);
 
-  GRL_DEBUG ("==================>del source '%s' count=%u",
-             grl_source_get_name (GRL_SOURCE (source)),
-             priv->notification_ref);
-  if (priv->notification_ref > 0) {
-    priv->notification_ref--;
-  }
-  if (priv->notification_ref == 0) {
-    g_hash_table_remove (grl_tracker_source_sources_modified,
-                         grl_tracker_source_get_tracker_source (source));
-    g_hash_table_remove (grl_tracker_source_sources,
-                         grl_tracker_source_get_tracker_source (source));
-    grl_tracker_source_cache_del_source (grl_tracker_item_cache, source);
-    priv->state = GRL_TRACKER_SOURCE_STATE_DELETED;
-    grl_registry_unregister_source (grl_registry_get_default (),
-                                    GRL_SOURCE (source),
-                                    NULL);
-  }
+  GRL_DEBUG ("==================>del source '%s'",
+             grl_source_get_name (GRL_SOURCE (source)));
+
+  g_hash_table_remove (grl_tracker_source_sources,
+                       grl_tracker_source_get_tracker_source (source));
+  grl_tracker_source_cache_del_source (grl_tracker_item_cache, source);
+  priv->state = GRL_TRACKER_SOURCE_STATE_DELETED;
+  grl_registry_unregister_source (grl_registry_get_default (),
+                                  GRL_SOURCE (source),
+                                  NULL);
 }
 
 gboolean
@@ -278,13 +262,7 @@ grl_tracker_source_find (const gchar *id)
   GrlTrackerSource *source;
 
   source = g_hash_table_lookup (grl_tracker_source_sources, id);
-
-  if (source)
-    return (GrlTrackerSource *) source;
-
-  return
-    (GrlTrackerSource *) g_hash_table_lookup (grl_tracker_source_sources_modified,
-                                              id);
+  return source;
 }
 
 static gboolean
@@ -309,13 +287,7 @@ grl_tracker_source_find_source (const gchar *id)
   source = g_hash_table_find (grl_tracker_source_sources,
                               match_plugin_id,
                               (gpointer) id);
-  if (source) {
-    return source;
-  }
-
-  return g_hash_table_find (grl_tracker_source_sources_modified,
-                            match_plugin_id,
-                            (gpointer) id);
+  return source;
 }
 
 static void
@@ -364,6 +336,7 @@ tracker_get_datasource_cb (GObject             *object,
                              "tracker-datasource", datasource,
                              NULL);
       grl_tracker_add_source (source);
+      g_object_unref (source);
       g_free (source_name);
     }
   }
@@ -407,10 +380,8 @@ grl_tracker_source_sources_init (void)
 
   grl_tracker_item_cache =
     grl_tracker_source_cache_new (TRACKER_ITEM_CACHE_SIZE);
-  grl_tracker_source_sources = g_hash_table_new (g_str_hash, g_str_equal);
-  grl_tracker_source_sources_modified = g_hash_table_new (g_str_hash,
-                                                          g_str_equal);
-
+  grl_tracker_source_sources = g_hash_table_new_full (g_str_hash, g_str_equal,
+                                                      NULL, g_object_unref);
 
   if (grl_tracker_connection != NULL) {
     grl_tracker_source_dbus_start_watch ();
@@ -426,8 +397,12 @@ grl_tracker_source_sources_init (void)
                                              (GAsyncReadyCallback) tracker_get_datasources_cb,
                                              NULL);
     } else {
+      GrlTrackerSource *source;
+
       /* One source to rule them all. */
-      grl_tracker_add_source (grl_tracker_source_new (grl_tracker_connection));
+      source = grl_tracker_source_new (grl_tracker_connection);
+      grl_tracker_add_source (source);
+      g_object_unref (source);
     }
   }
 }

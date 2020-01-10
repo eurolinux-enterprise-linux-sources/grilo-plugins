@@ -24,33 +24,23 @@
 #include "config.h"
 #endif
 
+#define _GNU_SOURCE
 #include <string.h>
 #include <stdlib.h>
 
 #include <grilo.h>
 #include <gio/gio.h>
+#include <glib/gi18n-lib.h>
+#include <libmediaart/mediaart.h>
 
 #include "grl-local-metadata.h"
 
 #define GRL_LOG_DOMAIN_DEFAULT local_metadata_log_domain
 GRL_LOG_DOMAIN_STATIC(local_metadata_log_domain);
 
-#define PLUGIN_ID   LOCALMETADATA_PLUGIN_ID
-
 #define SOURCE_ID   "grl-local-metadata"
-#define SOURCE_NAME "Local Metadata Provider"
-#define SOURCE_DESC "A source providing locally available metadata"
-
-/**/
-
-#define TV_REGEX                                \
-  "(?<showname>.*)\\."                          \
-  "(?<season>(?:\\d{1,2})|(?:[sS]\\K\\d{1,2}))" \
-  "(?<episode>(?:\\d{2})|(?:[eE]\\K\\d{1,2}))"  \
-  "\\.?(?<name>.*)?"
-#define MOVIE_REGEX                             \
-  "(?<name>.*)"                                 \
-  "\\.?[\\(\\[](?<year>[12][90]\\d{2})[\\)\\]]"
+#define SOURCE_NAME _("Local Metadata Provider")
+#define SOURCE_DESC _("A source providing locally available metadata")
 
 /**/
 
@@ -59,47 +49,20 @@ GRL_LOG_DOMAIN_STATIC(local_metadata_log_domain);
                                GRL_LOCAL_METADATA_SOURCE_TYPE,	\
                                GrlLocalMetadataSourcePriv))
 
-enum {
-  PROP_0,
-  PROP_GUESS_VIDEO,
-};
-
 struct _GrlLocalMetadataSourcePriv {
-  gboolean guess_video;
+  GrlKeyID hash_keyid;
 };
 
 /**/
 
 typedef enum {
-  FLAG_VIDEO_TITLE    = 0x1,
-  FLAG_VIDEO_SHOWNAME = 0x2,
-  FLAG_VIDEO_DATE     = 0x4,
-  FLAG_VIDEO_SEASON   = 0x8,
-  FLAG_VIDEO_EPISODE  = 0x10,
-  FLAG_THUMBNAIL      = 0x20,
+  FLAG_THUMBNAIL           = 1,
+  FLAG_GIBEST_HASH         = 1 << 1
 } resolution_flags_t;
-
-const gchar *video_blacklisted_prefix[] = {
-  "tpz-", NULL
-};
-
-const char *video_blacklisted_words[] = {
-  "720p", "1080p",
-  "ws", "WS", "proper", "PROPER",
-  "repack", "real.repack",
-  "hdtv", "HDTV", "pdtv", "PDTV", "notv", "NOTV",
-  "dsr", "DSR", "DVDRip", "divx", "DIVX", "xvid", "Xvid",
-  NULL
-};
 
 /**/
 
-static void grl_local_metadata_source_set_property (GObject      *object,
-                                                    guint         propid,
-                                                    const GValue *value,
-                                                    GParamSpec   *pspec);
-
-static GrlLocalMetadataSource *grl_local_metadata_source_new (gboolean guess_video);
+static GrlLocalMetadataSource *grl_local_metadata_source_new (void);
 
 static void grl_local_metadata_source_resolve (GrlSource *source,
                                                GrlSourceResolveSpec *rs);
@@ -117,6 +80,8 @@ static gboolean grl_local_metadata_source_may_resolve (GrlSource *source,
 gboolean grl_local_metadata_source_plugin_init (GrlRegistry *registry,
                                                 GrlPlugin *plugin,
                                                 GList *configs);
+static resolution_flags_t get_resolution_flags (GList                      *keys,
+                                                GrlLocalMetadataSourcePriv *priv);
 
 /**/
 
@@ -127,28 +92,15 @@ grl_local_metadata_source_plugin_init (GrlRegistry *registry,
                                        GrlPlugin *plugin,
                                        GList *configs)
 {
-  guint config_count;
-  gboolean guess_video = TRUE;
-  GrlConfig *config;
-
   GRL_LOG_DOMAIN_INIT (local_metadata_log_domain, "local-metadata");
 
   GRL_DEBUG ("grl_local_metadata_source_plugin_init");
 
-  if (!configs) {
-    GRL_INFO ("\tConfiguration not provided! Using default configuration.");
-  } else {
-    config_count = g_list_length (configs);
-    if (config_count > 1) {
-      GRL_INFO ("\tProvided %i configs, but will only use one", config_count);
-    }
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 
-    config = GRL_CONFIG (configs->data);
-
-    guess_video = grl_config_get_boolean (config, "guess-video");
-  }
-
-  GrlLocalMetadataSource *source = grl_local_metadata_source_new (guess_video);
+  GrlLocalMetadataSource *source = grl_local_metadata_source_new ();
   grl_registry_register_source (registry,
                                 plugin,
                                 GRL_SOURCE (source),
@@ -156,46 +108,41 @@ grl_local_metadata_source_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_local_metadata_source_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   LOCAL_METADATA_PLUGIN_ID,
+                   "Local Metadata Provider",
+                   "A plugin that gets simple-to-obtain metadata from the local filesystem",
+                   "Igalia S.L.",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_local_metadata_source_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== GrlLocalMetadata GObject ================ */
 
 static GrlLocalMetadataSource *
-grl_local_metadata_source_new (gboolean guess_video)
+grl_local_metadata_source_new (void)
 {
   GRL_DEBUG ("grl_local_metadata_source_new");
   return g_object_new (GRL_LOCAL_METADATA_SOURCE_TYPE,
 		       "source-id", SOURCE_ID,
 		       "source-name", SOURCE_NAME,
 		       "source-desc", SOURCE_DESC,
-                       "guess-video", guess_video,
 		       NULL);
 }
 
 static void
 grl_local_metadata_source_class_init (GrlLocalMetadataSourceClass * klass)
 {
-  GObjectClass           *g_class        = G_OBJECT_CLASS (klass);
-  GrlSourceClass         *source_class   = GRL_SOURCE_CLASS (klass);
-
-  g_class->set_property = grl_local_metadata_source_set_property;
+  GrlSourceClass *source_class = GRL_SOURCE_CLASS (klass);
 
   source_class->supported_keys = grl_local_metadata_source_supported_keys;
   source_class->cancel = grl_local_metadata_source_cancel;
   source_class->may_resolve = grl_local_metadata_source_may_resolve;
   source_class->resolve = grl_local_metadata_source_resolve;
-
-  g_object_class_install_property (g_class,
-                                   PROP_GUESS_VIDEO,
-                                   g_param_spec_boolean ("guess-video",
-                                                         "Guess video",
-                                                         "Guess video metadata "
-                                                         "from filename",
-                                                         TRUE,
-                                                         G_PARAM_WRITABLE |
-                                                         G_PARAM_CONSTRUCT_ONLY));
 
   g_type_class_add_private (klass, sizeof (GrlLocalMetadataSourcePriv));
 }
@@ -209,229 +156,187 @@ G_DEFINE_TYPE (GrlLocalMetadataSource,
                grl_local_metadata_source,
                GRL_TYPE_SOURCE);
 
-static void
-grl_local_metadata_source_set_property (GObject      *object,
-                                        guint         propid,
-                                        const GValue *value,
-                                        GParamSpec   *pspec)
-{
-  GrlLocalMetadataSourcePriv *priv =
-    GRL_LOCAL_METADATA_SOURCE_GET_PRIVATE (object);
-
-  switch (propid) {
-  case PROP_GUESS_VIDEO:
-    priv->guess_video = g_value_get_boolean (value);
-    break;
-
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, propid, pspec);
-  }
-}
-
 /* ======================= Utilities ==================== */
 
-static gchar *
-video_sanitise_string (const gchar *str)
+typedef struct {
+  GrlSource *source;  /* owned */
+  GrlSourceResolveSpec *rs;  /* unowned */
+  guint n_pending_operations;  /* always ≥ 1 */
+  gboolean has_invoked_callback;
+} ResolveData;
+
+static void
+resolve_data_start_operation (ResolveData  *data,
+                              const gchar  *op_name)
 {
-  int    i;
-  gchar *line;
+  g_assert (data->n_pending_operations >= 1);
+  data->n_pending_operations++;
 
-  line = (gchar *) str;
-  for (i = 0; video_blacklisted_prefix[i]; i++) {
-    if (g_str_has_prefix (str, video_blacklisted_prefix[i])) {
-      int len = strlen (video_blacklisted_prefix[i]);
-
-      line = (gchar *) str + len;
-    }
-  }
-
-  for (i = 0; video_blacklisted_words[i]; i++) {
-    gchar *end;
-
-    end = strstr (line, video_blacklisted_words[i]);
-    if (end) {
-      return g_strndup (line, end - line);
-    }
-  }
-
-  return g_strdup (line);
+  GRL_DEBUG ("Starting operation %s; %u operations now pending.",
+             op_name, data->n_pending_operations);
 }
 
-/* tidies strings before we run them through the regexes */
-static gchar *
-video_uri_to_metadata (const gchar *uri)
+/* The caller is responsible for freeing @error. */
+static void
+resolve_data_finish_operation (ResolveData   *data,
+                               const gchar   *op_name,
+                               const GError  *error)
 {
-  gchar *ext, *basename, *name, *whitelisted;
+  g_assert (data->n_pending_operations >= 1);
+  data->n_pending_operations--;
 
-  basename = g_path_get_basename (uri);
-  ext = strrchr (basename, '.');
-  if (ext) {
-    name = g_strndup (basename, ext - basename);
-    g_free (basename);
-  } else {
-    name = basename;
+  GRL_DEBUG ("Finishing operation %s; %u operations still pending.",
+             op_name, data->n_pending_operations);
+
+  if (!data->has_invoked_callback &&
+      (data->n_pending_operations == 0 || error != NULL)) {
+    GrlSourceResolveSpec *rs = data->rs;
+
+    /* All sub-operations have finished (or one has errored), so the callback
+     * can be invoked. */
+    data->has_invoked_callback = TRUE;
+    rs->callback (data->source, rs->operation_id, rs->media,
+                  rs->user_data, error);
   }
 
-  /* Replace _ <space> with . */
-  g_strdelimit (name, "_ ", '.');
-  whitelisted = video_sanitise_string (name);
-  g_free (name);
+  /* All sub-operations have finished, so we can free the closure. */
+  if (data->n_pending_operations == 0) {
+    g_assert (data->has_invoked_callback);
 
-  return whitelisted;
+    g_object_unref (data->source);
+    g_slice_free (ResolveData, data);
+  }
+}
+
+/* Returns: (transfer none) */
+static GCancellable *
+resolve_data_ensure_cancellable (ResolveData *resolve_data)
+{
+  GCancellable *cancellable;
+
+  cancellable = grl_operation_get_data (resolve_data->rs->operation_id);
+
+  if (cancellable)
+    return cancellable;
+
+  cancellable = g_cancellable_new ();
+  /* The operation owns the cancellable */
+  grl_operation_set_data_full (resolve_data->rs->operation_id,
+                               cancellable,
+                               (GDestroyNotify) g_object_unref);
+  return cancellable;
 }
 
 static void
-video_guess_values_from_uri (const gchar *uri,
-                             gchar      **title,
-                             gchar      **showname,
-                             GDateTime  **date,
-                             gint        *season,
-                             gint        *episode)
+extract_gibest_hash_done (GObject      *source_object,
+                          GAsyncResult *res,
+                          gpointer      user_data)
 {
-  gchar      *metadata;
-  GRegex     *regex;
-  GMatchInfo *info;
+  GError *error = NULL;
+  ResolveData *resolve_data = user_data;
 
-  metadata = video_uri_to_metadata (uri);
-
-  regex = g_regex_new (MOVIE_REGEX, 0, 0, NULL);
-  g_regex_match (regex, metadata, 0, &info);
-
-  if (g_match_info_matches (info)) {
-    if (title) {
-      *title = g_match_info_fetch_named (info, "name");
-      /* Replace "." with <space> */
-      g_strdelimit (*title, ".", ' ');
-    }
-
-    if (date) {
-      gchar *year = g_match_info_fetch_named (info, "year");
-
-      *date = g_date_time_new_utc (atoi (year), 1, 1, 0, 0, 0.0);
-      g_free (year);
-    }
-
-    if (showname) {
-      *showname = NULL;
-    }
-
-    if (season) {
-      *season = 0;
-    }
-
-    if (episode) {
-      *episode = 0;
-    }
-
-    g_regex_unref (regex);
-    g_match_info_free (info);
-    g_free (metadata);
-
-    return;
-  }
-
-  g_regex_unref (regex);
-  g_match_info_free (info);
-
-  regex = g_regex_new (TV_REGEX, 0, 0, NULL);
-  g_regex_match (regex, metadata, 0, &info);
-
-  if (g_match_info_matches (info)) {
-    if (title) {
-      *title = g_match_info_fetch_named (info, "name");
-      g_strdelimit (*title, ".", ' ');
-    }
-
-    if (showname) {
-      *showname = g_match_info_fetch_named (info, "showname");
-      g_strdelimit (*showname, ".", ' ');
-    }
-
-    if (season) {
-      gchar *s = g_match_info_fetch_named (info, "season");
-      if (s) {
-        if (*s == 's' || *s == 'S') {
-          *season = atoi (s + 1);
-        } else {
-          *season = atoi (s);
-        }
-      } else {
-        *season = 0;
-      }
-
-      g_free (s);
-    }
-
-    if (episode) {
-      gchar *e = g_match_info_fetch_named (info, "episode");
-      if (e) {
-        if (*e == 'e' || *e == 'E') {
-          *episode = atoi (e + 1);
-        } else {
-          *episode = atoi (e);
-        }
-      } else {
-        *episode = 0;
-      }
-
-      g_free (e);
-    }
-
-    if (date) {
-      *date = NULL;
-    }
-
-    g_regex_unref (regex);
-    g_match_info_free (info);
-    g_free (metadata);
-
-    return;
-  }
-
-  g_regex_unref (regex);
-  g_match_info_free (info);
-
-  /* The filename doesn't look like a movie or a TV show, just use the
-     filename without extension as the title */
-  if (title) {
-    *title = g_strdelimit (metadata, ".", ' ');
-  }
-
-  if (showname) {
-    *showname = NULL;
-  }
-
-  if (date) {
-    *date = NULL;
-  }
-
-  if (season) {
-    *season = 0;
-  }
-
-  if (episode) {
-    *episode = 0;
-  }
+  g_task_propagate_boolean (G_TASK (res), &error);
+  resolve_data_finish_operation (resolve_data, "image", error);
+  g_clear_error (&error);
 }
+
+#define CHUNK_N_BYTES (2 << 15)
+
+static void
+extract_gibest_hash (GTask        *task,
+                     gpointer      source_object,
+                     gpointer      task_data,
+                     GCancellable *cancellable)
+{
+  GFile *file = source_object;
+  guint64 buffer[2][CHUNK_N_BYTES/8];
+  GInputStream *stream = NULL;
+  gssize n_bytes, file_size;
+  GError *error = NULL;
+  guint64 hash = 0;
+  gint i;
+  char *str;
+  ResolveData *resolve_data = task_data;
+  GrlLocalMetadataSourcePriv *priv;
+
+  priv = GRL_LOCAL_METADATA_SOURCE_GET_PRIVATE (resolve_data->source);
+
+  stream = G_INPUT_STREAM (g_file_read (file, cancellable, &error));
+  if (stream == NULL)
+    goto fail;
+
+  /* Extract start/end chunks of the file */
+  n_bytes = g_input_stream_read (stream, buffer[0], CHUNK_N_BYTES, cancellable, &error);
+  if (n_bytes == -1)
+    goto fail;
+
+  if (!g_seekable_seek (G_SEEKABLE (stream), -CHUNK_N_BYTES, G_SEEK_END, cancellable, &error))
+    goto fail;
+
+  n_bytes = g_input_stream_read (stream, buffer[1], CHUNK_N_BYTES, cancellable, &error);
+  if (n_bytes == -1)
+    goto fail;
+
+  for (i = 0; i < G_N_ELEMENTS (buffer[0]); i++)
+    hash += buffer[0][i] + buffer[1][i];
+
+  file_size = g_seekable_tell (G_SEEKABLE (stream));
+
+  if (file_size < CHUNK_N_BYTES)
+    goto fail;
+
+  /* Include file size */
+  hash += file_size;
+  g_object_unref (stream);
+
+  str = g_strdup_printf ("%" G_GINT64_FORMAT, hash);
+  grl_data_set_string (GRL_DATA (resolve_data->rs->media), priv->hash_keyid, str);
+  g_free (str);
+
+  g_task_return_boolean (task, TRUE);
+  return;
+
+fail:
+  GRL_DEBUG ("Could not get file hash: %s\n", error ? error->message : "Unknown error");
+  g_task_return_error (task, error);
+  g_clear_object (&stream);
+}
+
+static void
+extract_gibest_hash_async (ResolveData          *resolve_data,
+                           GFile                *file,
+                           GCancellable         *cancellable)
+{
+  GTask *task;
+
+  task = g_task_new (G_OBJECT (file), cancellable, extract_gibest_hash_done,
+                     resolve_data);
+  g_task_run_in_thread (task, extract_gibest_hash);
+}
+
+static void resolve_album_art (ResolveData         *resolve_data,
+                               resolution_flags_t   flags);
 
 static void
 got_file_info (GFile *file,
                GAsyncResult *result,
-               GrlSourceResolveSpec *rs)
+               gpointer user_data)
 {
   GCancellable *cancellable;
   GFileInfo *info;
   GError *error = NULL;
   const gchar *thumbnail_path;
+  gboolean thumbnail_is_valid;
+  GrlLocalMetadataSourcePriv *priv;
+  ResolveData *resolve_data = user_data;
+  GrlSourceResolveSpec *rs = resolve_data->rs;
+  resolution_flags_t flags;
 
   GRL_DEBUG ("got_file_info");
 
-  /* Free stored operation data */
-  cancellable = grl_operation_get_data (rs->operation_id);
+  priv = GRL_LOCAL_METADATA_SOURCE_GET_PRIVATE (resolve_data->source);
 
-  if (cancellable) {
-    g_object_unref (cancellable);
-  }
+  cancellable = resolve_data_ensure_cancellable (resolve_data);
 
   info = g_file_query_info_finish (file, result, &error);
   if (error)
@@ -439,9 +344,10 @@ got_file_info (GFile *file,
 
   thumbnail_path =
       g_file_info_get_attribute_byte_string (info, G_FILE_ATTRIBUTE_THUMBNAIL_PATH);
+  thumbnail_is_valid =
+      g_file_info_get_attribute_boolean (info, G_FILE_ATTRIBUTE_THUMBNAIL_IS_VALID);
 
-
-  if (thumbnail_path) {
+  if (thumbnail_path && thumbnail_is_valid) {
     gchar *thumbnail_uri = g_filename_to_uri (thumbnail_path, NULL, &error);
     if (error)
       goto error;
@@ -450,330 +356,142 @@ got_file_info (GFile *file,
               grl_media_get_url (rs->media));
     grl_media_set_thumbnail (rs->media, thumbnail_uri);
     g_free (thumbnail_uri);
-
-    rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
+  } else if (thumbnail_path && !thumbnail_is_valid) {
+    GRL_INFO ("Found outdated thumbnail %s for media: %s", thumbnail_path,
+              grl_media_get_url (rs->media));
   } else {
     GRL_INFO ("Could not find thumbnail for media: %s",
               grl_media_get_url (rs->media));
-    rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
+  }
+
+  flags = get_resolution_flags (rs->keys, priv);
+
+  if (grl_media_is_audio (rs->media) &&
+      !(thumbnail_path && thumbnail_is_valid)) {
+    /* We couldn't get a per-track thumbnail; try for a per-album one,
+     * using libmediaart */
+    resolve_album_art (resolve_data, flags);
+  }
+
+  if (flags & FLAG_GIBEST_HASH) {
+    extract_gibest_hash_async (resolve_data, file, cancellable);
+  } else {
+    resolve_data_finish_operation (resolve_data, "image", NULL);
   }
 
   goto exit;
 
 error:
     {
-      GError *new_error = g_error_new (GRL_CORE_ERROR, GRL_CORE_ERROR_RESOLVE_FAILED,
-                                       "Got error: %s", error->message);
-      rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, new_error);
+      GError *new_error = g_error_new (GRL_CORE_ERROR,
+                                       GRL_CORE_ERROR_RESOLVE_FAILED,
+                                       _("Failed to resolve: %s"),
+                                       error->message);
+      resolve_data_finish_operation (resolve_data, "image", new_error);
 
       g_error_free (error);
       g_error_free (new_error);
     }
 
 exit:
-  if (info)
-    g_object_unref (info);
+    g_clear_object (&info);
 }
 
 static void
-resolve_video (GrlSource *source,
-               GrlSourceResolveSpec *rs,
-               GrlKeyID key,
-               resolution_flags_t flags)
-{
-  gchar *title, *showname;
-  GDateTime *date;
-  gint season, episode;
-  GrlData *data = GRL_DATA (rs->media);
-  resolution_flags_t miss_flags = 0, fill_flags;
-
-  GRL_DEBUG ("%s",__FUNCTION__);
-
-  if (!(flags & (FLAG_VIDEO_TITLE |
-                 FLAG_VIDEO_SHOWNAME |
-                 FLAG_VIDEO_DATE |
-                 FLAG_VIDEO_SEASON |
-                 FLAG_VIDEO_EPISODE)))
-    return;
-
-  miss_flags |= grl_data_has_key (data, GRL_METADATA_KEY_TITLE) ?
-    0 : FLAG_VIDEO_TITLE;
-  miss_flags |= grl_data_has_key (data, GRL_METADATA_KEY_SHOW) ?
-    0 : FLAG_VIDEO_SHOWNAME;
-  miss_flags |= grl_data_has_key (data, GRL_METADATA_KEY_PUBLICATION_DATE) ?
-    0 : FLAG_VIDEO_DATE;
-  miss_flags |= grl_data_has_key (data, GRL_METADATA_KEY_SEASON) ?
-    0 : FLAG_VIDEO_SEASON;
-  miss_flags |= grl_data_has_key (data, GRL_METADATA_KEY_EPISODE) ?
-    0 : FLAG_VIDEO_EPISODE;
-
-  fill_flags = flags & miss_flags;
-
-  if (!fill_flags)
-    return;
-
-  video_guess_values_from_uri (grl_data_get_string (GRL_DATA (rs->media), key),
-                               &title, &showname, &date,
-                               &season, &episode);
-
-  GRL_DEBUG ("\tfound title=%s/showname=%s/year=%i/season=%i/episode=%i",
-             title, showname,
-             date != NULL ? g_date_time_get_year (date) : 0,
-             season, episode);
-
-  /* As this is just a guess, don't erase already provided values. */
-  if (title) {
-    if (fill_flags & FLAG_VIDEO_TITLE) {
-      grl_data_set_string (data, GRL_METADATA_KEY_TITLE, title);
-    }
-    g_free (title);
-  }
-
-  if (showname) {
-    if (fill_flags & FLAG_VIDEO_SHOWNAME) {
-      grl_data_set_string (data, GRL_METADATA_KEY_SHOW, showname);
-    }
-    g_free (showname);
-  }
-
-  if (date) {
-    if (fill_flags & FLAG_VIDEO_DATE) {
-      grl_data_set_boxed (data, GRL_METADATA_KEY_PUBLICATION_DATE, date);
-    }
-    g_date_time_unref (date);
-  }
-
-  if (season && (fill_flags & FLAG_VIDEO_SEASON)) {
-    grl_data_set_int (data, GRL_METADATA_KEY_SEASON, season);
-  }
-
-  if (episode && (fill_flags & FLAG_VIDEO_EPISODE)) {
-    grl_data_set_int (data, GRL_METADATA_KEY_EPISODE, episode);
-  }
-}
-
-static gboolean
-resolve_image (GrlSource *source,
-               GrlSourceResolveSpec *rs,
-               resolution_flags_t flags)
+resolve_image (ResolveData         *resolve_data,
+               resolution_flags_t   flags)
 {
   GFile *file;
   GCancellable *cancellable;
 
   GRL_DEBUG ("resolve_image");
 
+  resolve_data_start_operation (resolve_data, "image");
+
   if (flags & FLAG_THUMBNAIL) {
-    file = g_file_new_for_uri (grl_media_get_url (rs->media));
+    const gchar *attributes;
 
-    cancellable = g_cancellable_new ();
-    grl_operation_set_data (rs->operation_id, cancellable);
-    g_file_query_info_async (file, G_FILE_ATTRIBUTE_THUMBNAIL_PATH,
+    file = g_file_new_for_uri (grl_media_get_url (resolve_data->rs->media));
+
+    cancellable = resolve_data_ensure_cancellable (resolve_data);
+
+    attributes = G_FILE_ATTRIBUTE_THUMBNAIL_PATH "," \
+                 G_FILE_ATTRIBUTE_THUMBNAIL_IS_VALID;
+
+    g_file_query_info_async (file, attributes,
                              G_FILE_QUERY_INFO_NONE, G_PRIORITY_DEFAULT, cancellable,
-                             (GAsyncReadyCallback)got_file_info, rs);
+                             (GAsyncReadyCallback)got_file_info, resolve_data);
     g_object_unref (file);
-
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-/* Taken from: http://live.gnome.org/MediaArtStorageSpec/SampleStripCodeInC */
-static gboolean
-strip_find_next_block (const gchar    *original,
-                       const gunichar  open_char,
-                       const gunichar  close_char,
-                       gint           *open_pos,
-                       gint           *close_pos)
-{
-  const gchar *p1, *p2;
-
-  if (open_pos)
-    *open_pos = -1;
-
-  if (close_pos)
-    *close_pos = -1;
-
-  p1 = g_utf8_strchr (original, -1, open_char);
-  if (p1) {
-    if (open_pos)
-      *open_pos = p1 - original;
-
-    p2 = g_utf8_strchr (g_utf8_next_char (p1), -1, close_char);
-    if (p2) {
-      if (close_pos)
-        *close_pos = p2 - original;
-
-      return TRUE;
-    }
-  }
-
-  return FALSE;
-}
-
-
-/* Taken from: http://live.gnome.org/MediaArtStorageSpec/SampleStripCodeInC
- * strips out invalid characters in a album name or artist name before md5sum
- * to get the unique identifier to find the album art.
- */
-static gchar *
-albumart_strip_invalid_entities (const gchar *original)
-{
-  GString         *str_no_blocks;
-  gchar          **strv;
-  gchar           *str, *res;
-  gboolean         blocks_done = FALSE;
-  const gchar     *p;
-  const gchar     *invalid_chars = "()[]<>{}_!@#$^&*+=|\\/\"'?~";
-  const gchar     *invalid_chars_delimiter = "*";
-  const gchar     *convert_chars = "\t";
-  const gchar     *convert_chars_delimiter = " ";
-  const gunichar   blocks[5][2] = {
-      { '(', ')' },
-      { '{', '}' },
-      { '[', ']' },
-      { '<', '>' },
-      {  0,   0  }
-  };
-
-  str_no_blocks = g_string_new ("");
-
-  p = original;
-
-  while (!blocks_done) {
-    gint pos1, pos2, i;
-
-    pos1 = -1;
-    pos2 = -1;
-
-    for (i = 0; blocks[i][0] != 0; i++) {
-      gint start, end;
-
-      /* Go through blocks, find the earliest block we can */
-      if (strip_find_next_block (p, blocks[i][0], blocks[i][1], &start,
-                                 &end)) {
-        if (pos1 == -1 || start < pos1) {
-          pos1 = start;
-          pos2 = end;
-        }
-      }
-    }
-
-    /* If either are -1 we didn't find any */
-    if (pos1 == -1) {
-      /* This means no blocks were found */
-      g_string_append (str_no_blocks, p);
-      blocks_done = TRUE;
-    } else {
-      /* Append the test BEFORE the block */
-      if (pos1 > 0)
-        g_string_append_len (str_no_blocks, p, pos1);
-
-      p = g_utf8_next_char (p + pos2);
-
-      /* Do same again for position AFTER block */
-      if (*p == '\0')
-        blocks_done = TRUE;
-    }
-  }
-
-  str = g_string_free (str_no_blocks, FALSE);
-
-  /* Now strip invalid chars */
-  g_strdelimit (str, invalid_chars, *invalid_chars_delimiter);
-  strv = g_strsplit (str, invalid_chars_delimiter, -1);
-  g_free (str);
-  str = g_strjoinv (NULL, strv);
-  g_strfreev (strv);
-
-  /* Now convert chars */
-  g_strdelimit (str, convert_chars, *convert_chars_delimiter);
-  strv = g_strsplit (str, convert_chars_delimiter, -1);
-  g_free (str);
-  str = g_strjoinv (convert_chars_delimiter, strv);
-  g_strfreev (strv);
-
-  /* Now remove double spaces */
-  strv = g_strsplit (str, "  ", -1);
-  g_free (str);
-  str = g_strjoinv (" ", strv);
-  g_strfreev (strv);
-
-  /* Now strip leading/trailing white space */
-  g_strstrip (str);
-
-  res = g_utf8_strdown (str, -1);
-  g_free (str);
-
-  str = g_utf8_normalize (res, -1, G_NORMALIZE_NFKD);
-  g_free (res);
-
-  return str;
-}
-
-static gboolean
-resolve_album_art (GrlSource *source,
-                   GrlSourceResolveSpec *rs,
-                   resolution_flags_t flags)
-{
-  const gchar *artist_value, *album_value;
-  gchar *artist, *album, *artist_tmp, *album_tmp,
-        *artist_md5, *album_md5, *file_path;
-
-  GRegex *regex;
-
-  artist_value = grl_media_audio_get_artist (GRL_MEDIA_AUDIO (rs->media));
-  album_value = grl_media_audio_get_album (GRL_MEDIA_AUDIO (rs->media));
-
-  if (!artist_value || !album_value)
-    return TRUE;
-
-  /* regex to find if we need to strip invalid chars
-   * ()[]<>{}_!@#$^&*+=|\\/\"'?~" and 2 or more spaces
-   */
-
-  regex =
-    g_regex_new ("([\\(\\)\\[\\]\\<\\>\\{\\}_!@#$\\^&\\*"
-                 "\\+=\\|\\\\/\\\"\\'\?~]|\\s{2,})",
-                 0, 0, NULL);
-
-  if ((g_regex_match (regex, artist_value, 0, NULL))) {
-    artist = albumart_strip_invalid_entities (artist_value);
   } else {
-    artist_tmp = g_utf8_strdown (artist_value, -1);
-    artist = g_utf8_normalize (artist_tmp, -1, G_NORMALIZE_NFKD);
-    g_free (artist_tmp);
+    resolve_data_finish_operation (resolve_data, "image", NULL);
+  }
+}
+
+static void
+resolve_album_art_cb (GObject       *source_object,
+                      GAsyncResult  *result,
+                      gpointer       user_data)
+{
+  GFile *cache_file;
+  ResolveData *resolve_data;
+  GFileInfo *info = NULL;
+  GError *error = NULL;
+
+  cache_file = G_FILE (source_object);
+  resolve_data = user_data;
+
+  info = g_file_query_info_finish (cache_file, result, &error);
+
+  if (info != NULL) {
+    /* Success, the album art exists. */
+    gchar *cache_uri = g_file_get_uri (cache_file);
+    grl_media_set_thumbnail (resolve_data->rs->media, cache_uri);
+    g_free (cache_uri);
+  } else if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND)) {
+    /* Ignore G_IO_ERROR_NOT_FOUND. */
+    g_clear_error (&error);
   }
 
-  if (g_regex_match (regex, album_value, 0, NULL)) {
-    album = albumart_strip_invalid_entities (album_value);
+  resolve_data_finish_operation (resolve_data, "album-art", error);
+
+  g_clear_object (&info);
+  g_clear_error (&error);
+}
+
+static void
+resolve_album_art (ResolveData         *resolve_data,
+                   resolution_flags_t   flags)
+{
+  const gchar *artist, *album;
+  GCancellable *cancellable = NULL;
+  GFile *cache_file = NULL;
+
+  resolve_data_start_operation (resolve_data, "album-art");
+
+  artist = grl_media_get_artist (resolve_data->rs->media);
+  album = grl_media_get_album (resolve_data->rs->media);
+
+  if (!artist || !album)
+    goto done;
+
+  cancellable = resolve_data_ensure_cancellable (resolve_data);
+
+  media_art_get_file (artist, album, "album", &cache_file);
+
+  if (cache_file) {
+    /* Check whether the cache file exists. */
+    resolve_data_start_operation (resolve_data, "album-art");
+    g_file_query_info_async (cache_file, G_FILE_ATTRIBUTE_ACCESS_CAN_READ,
+                             G_FILE_QUERY_INFO_NONE, G_PRIORITY_DEFAULT,
+                             cancellable, resolve_album_art_cb, resolve_data);
   } else {
-    album_tmp = g_utf8_strdown (album_value, -1);
-    album = g_utf8_normalize (album_tmp, -1, G_NORMALIZE_NFKD);
-    g_free (album_tmp);
+    GRL_DEBUG ("Found no thumbnail for artist %s and album %s", artist, album);
   }
 
-  g_regex_unref (regex);
+done:
+  resolve_data_finish_operation (resolve_data, "album-art", NULL);
 
-  artist_md5 = g_compute_checksum_for_string (G_CHECKSUM_MD5, artist, -1);
-  album_md5 = g_compute_checksum_for_string (G_CHECKSUM_MD5, album, -1);
-
-  file_path = g_strdup_printf ("%s/media-art/album-%s-%s.jpeg",
-                               g_get_user_cache_dir (),
-                               artist_md5,
-                               album_md5);
-  g_free (album_md5);
-  g_free (artist_md5);
-
-  if (g_file_test (file_path, G_FILE_TEST_EXISTS)) {
-    gchar *thumbnail_uri = g_filename_to_uri (file_path, NULL, NULL);
-    grl_media_set_thumbnail (rs->media, thumbnail_uri);
-    g_free (thumbnail_uri);
-    g_free (file_path);
-  }
-  rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
-
-  return FALSE;
+  g_clear_object (&cache_file);
 }
 
 static gboolean
@@ -816,6 +534,8 @@ has_compatible_media_url (GrlMedia *media)
 
     if (g_str_has_prefix (source, "grl-upnp-uuid:"))
       return FALSE;
+    if (g_str_has_prefix (source, "grl-dleyna-uuid:"))
+      return FALSE;
   }
 
   url = grl_media_get_url (media);
@@ -832,25 +552,18 @@ has_compatible_media_url (GrlMedia *media)
 }
 
 static resolution_flags_t
-get_resolution_flags (GList *keys)
+get_resolution_flags (GList                      *keys,
+                      GrlLocalMetadataSourcePriv *priv)
 {
   GList *iter = keys;
   resolution_flags_t flags = 0;
 
   while (iter != NULL) {
     GrlKeyID key = GRLPOINTER_TO_KEYID (iter->data);
-    if (key == GRL_METADATA_KEY_TITLE)
-      flags |= FLAG_VIDEO_TITLE;
-    else if (key == GRL_METADATA_KEY_SHOW)
-      flags |= FLAG_VIDEO_SHOWNAME;
-    else if (key == GRL_METADATA_KEY_PUBLICATION_DATE)
-      flags |= FLAG_VIDEO_DATE;
-    else if (key == GRL_METADATA_KEY_SEASON)
-      flags |= FLAG_VIDEO_SEASON;
-    else if (key == GRL_METADATA_KEY_EPISODE)
-      flags |= FLAG_VIDEO_EPISODE;
-    else if (key == GRL_METADATA_KEY_THUMBNAIL)
+    if (key == GRL_METADATA_KEY_THUMBNAIL)
       flags |= FLAG_THUMBNAIL;
+    else if (key == priv->hash_keyid)
+      flags |= FLAG_GIBEST_HASH;
 
     iter = iter->next;
   }
@@ -860,17 +573,26 @@ get_resolution_flags (GList *keys)
 
 /* ================== API Implementation ================ */
 
+static void
+ensure_hash_keyid (GrlLocalMetadataSourcePriv *priv)
+{
+  if (priv->hash_keyid == GRL_METADATA_KEY_INVALID) {
+    GrlRegistry *registry = grl_registry_get_default ();
+    priv->hash_keyid = grl_registry_lookup_metadata_key (registry, "gibest-hash");
+  }
+}
+
 static const GList *
 grl_local_metadata_source_supported_keys (GrlSource *source)
 {
   static GList *keys = NULL;
+  GrlLocalMetadataSourcePriv *priv =
+          GRL_LOCAL_METADATA_SOURCE_GET_PRIVATE (source);
+
+  ensure_hash_keyid (priv);
   if (!keys) {
     keys = grl_metadata_key_list_new (GRL_METADATA_KEY_THUMBNAIL,
-                                      GRL_METADATA_KEY_TITLE,
-                                      GRL_METADATA_KEY_SHOW,
-                                      GRL_METADATA_KEY_PUBLICATION_DATE,
-                                      GRL_METADATA_KEY_SEASON,
-                                      GRL_METADATA_KEY_EPISODE,
+                                      priv->hash_keyid,
                                       NULL);
   }
   return keys;
@@ -882,13 +604,10 @@ grl_local_metadata_source_may_resolve (GrlSource *source,
                                        GrlKeyID key_id,
                                        GList **missing_keys)
 {
-  GrlLocalMetadataSourcePriv *priv =
-    GRL_LOCAL_METADATA_SOURCE_GET_PRIVATE (source);
-
   if (!media)
     return FALSE;
 
-  if (GRL_IS_MEDIA_AUDIO (media)) {
+  if (grl_media_is_audio (media)) {
     gboolean have_artist = FALSE, have_album = FALSE;
 
     if ((have_artist = grl_data_has_key (GRL_DATA (media),
@@ -916,7 +635,7 @@ grl_local_metadata_source_may_resolve (GrlSource *source,
     return FALSE;
   }
 
-  if (GRL_IS_MEDIA_IMAGE (media)) {
+  if (grl_media_is_image (media) || grl_media_is_video (media)) {
     if (key_id != GRL_METADATA_KEY_THUMBNAIL)
       return FALSE;
     if (!grl_data_has_key (GRL_DATA (media), GRL_METADATA_KEY_URL))
@@ -925,37 +644,6 @@ grl_local_metadata_source_may_resolve (GrlSource *source,
       return FALSE;
     return TRUE;
   }
-
-  if (GRL_IS_MEDIA_VIDEO (media)) {
-    switch (key_id) {
-    case GRL_METADATA_KEY_TITLE:
-    case GRL_METADATA_KEY_SHOW:
-    case GRL_METADATA_KEY_PUBLICATION_DATE:
-    case GRL_METADATA_KEY_SEASON:
-    case GRL_METADATA_KEY_EPISODE:
-      if (!priv->guess_video)
-        return FALSE;
-      if (grl_data_has_key (GRL_DATA (media), GRL_METADATA_KEY_URL) &&
-          has_compatible_media_url (media))
-        return TRUE;
-      if (!grl_data_has_key (GRL_DATA (media), GRL_METADATA_KEY_TITLE))
-        goto missing_title;
-      return TRUE;
-    case GRL_METADATA_KEY_THUMBNAIL:
-      if (grl_data_has_key (GRL_DATA (media), GRL_METADATA_KEY_URL) == FALSE)
-        goto missing_url;
-      return has_compatible_media_url (media);
-    }
-  }
-
-missing_title:
-  if (missing_keys) {
-    if (grl_data_has_key (GRL_DATA (media), GRL_METADATA_KEY_URL) == FALSE)
-      *missing_keys = grl_metadata_key_list_new (GRL_METADATA_KEY_TITLE, GRL_METADATA_KEY_URL, NULL);
-    else
-      *missing_keys = grl_metadata_key_list_new (GRL_METADATA_KEY_TITLE, NULL);
-  }
-  return FALSE;
 
 missing_url:
   if (missing_keys)
@@ -973,49 +661,50 @@ grl_local_metadata_source_resolve (GrlSource *source,
   GrlLocalMetadataSourcePriv *priv =
     GRL_LOCAL_METADATA_SOURCE_GET_PRIVATE (source);
   gboolean can_access;
-  gboolean done;
+  ResolveData *data = NULL;
 
   GRL_DEBUG (__FUNCTION__);
+
+  /* Wrap the whole resolve operation in a GTask, as there are various async
+   * components which need to run in parallel. */
+  data = g_slice_new0 (ResolveData);
+  data->source = g_object_ref (source);
+  data->rs = rs;
+  data->n_pending_operations = 1;  /* to track the initial checks */
 
   /* Can we access the media through gvfs? */
   can_access = has_compatible_media_url (rs->media);
 
-  flags = get_resolution_flags (rs->keys);
-
-   if (!flags)
-     error = g_error_new (GRL_CORE_ERROR, GRL_CORE_ERROR_RESOLVE_FAILED,
-                          "local-metadata cannot resolve any of the given keys");
-   if (GRL_IS_MEDIA_IMAGE (rs->media) && can_access == FALSE)
-     error = g_error_new (GRL_CORE_ERROR, GRL_CORE_ERROR_RESOLVE_FAILED,
-                          "local-metadata needs a GIO supported URL for images");
+  flags = get_resolution_flags (rs->keys, priv);
+  if (!flags)
+    error = g_error_new_literal (GRL_CORE_ERROR,
+                                 GRL_CORE_ERROR_RESOLVE_FAILED,
+                                 _("Cannot resolve any of the given keys"));
+  if (grl_media_is_image (rs->media) && can_access == FALSE)
+    error = g_error_new_literal (GRL_CORE_ERROR,
+                                 GRL_CORE_ERROR_RESOLVE_FAILED,
+                                 _("A GIO supported URL for images is required"));
 
   if (error) {
     /* No can do! */
-    rs->callback (source, rs->operation_id, rs->media, rs->user_data, error);
+    resolve_data_finish_operation (data, "root", error);
     g_error_free (error);
     return;
   }
 
   GRL_DEBUG ("\ttrying to resolve for: %s", grl_media_get_url (rs->media));
 
-  done = FALSE;
-
-  if (GRL_IS_MEDIA_VIDEO (rs->media)) {
-    done = TRUE;
-    if (priv->guess_video)
-      resolve_video (source, rs, can_access ? GRL_METADATA_KEY_URL : GRL_METADATA_KEY_TITLE, flags);
-    if (can_access)
-      done = resolve_image (source, rs, flags);
-  } else if (GRL_IS_MEDIA_IMAGE (rs->media)) {
-    done = resolve_image (source, rs, flags);
-  } else if (GRL_IS_MEDIA_AUDIO (rs->media)) {
-    done = resolve_album_art (source, rs, flags);
+  if (grl_media_is_image (rs->media) || grl_media_is_video (rs->media)) {
+    resolve_image (data, flags);
+  } else if (grl_media_is_audio (rs->media)) {
+    /* Try for a per-track thumbnail first; we'll fall back to album art
+     * if the track doesn't have one */
+    resolve_image (data, flags);
   }
 
-  /* Only call the callback if there are no async jobs left-over,
-   * such as resolve_image() checking for thumbnails */
-  if (done)
-    rs->callback (source, rs->operation_id, rs->media, rs->user_data, NULL);
+  /* Finish the overall operation (this might not call the callback if there
+   * are still some sub-operations pending). */
+  resolve_data_finish_operation (data, "root", NULL);
 }
 
 static void

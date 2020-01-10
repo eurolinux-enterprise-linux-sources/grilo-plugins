@@ -1,37 +1,48 @@
 # first two digits of version
 %define release_version %(echo %{version} | awk -F. '{print $1"."$2}')
 
+%global grilo_version 0.3.1
+%global goa_version 3.17.91
+
 Name:		grilo-plugins
-Version:	0.2.6
-Release:	4%{?dist}
+Version:	0.3.4
+Release:	1%{?dist}
 Summary:	Plugins for the Grilo framework
 
-Group:		Applications/Multimedia
 License:	LGPLv2+
-Url:		https://live.gnome.org/Grilo
-Source0:	http://ftp.gnome.org/pub/GNOME/sources/grilo-plugins/%{release_version}/grilo-plugins-%{version}.tar.xz
+URL:		https://wiki.gnome.org/Projects/Grilo
+Source0:	https://download.gnome.org/sources/grilo-plugins/%{release_version}/grilo-plugins-%{version}.tar.xz
 
-BuildRequires:	grilo-devel >= 0.2.4
-BuildRequires:	glib2-devel >= 2.26.0
+BuildRequires:	avahi-gobject-devel
+BuildRequires:	grilo-devel >= %{grilo_version}
+BuildRequires:	glib2-devel
+BuildRequires:	gom-devel
+BuildRequires:	gnome-online-accounts-devel >= %{goa_version}
+BuildRequires:	gperf
+BuildRequires:	libgcrypt-devel
 BuildRequires:	libxml2-devel
-BuildRequires:	gupnp-devel >= 0.13.0
-BuildRequires:	gupnp-av-devel >= 0.5.0
+BuildRequires:	intltool
+BuildRequires:	itstool
+BuildRequires:	libarchive-devel
+BuildRequires:	libmediaart-devel
+BuildRequires:	libsoup-devel
+%if 0%{?fedora}
+BuildRequires:	lua-devel
+%endif
+BuildRequires:	rest-devel
 BuildRequires:	sqlite-devel
 BuildRequires:	libgdata-devel
-BuildRequires:	tracker-devel >= 0.9.0
-BuildRequires:	libquvi-devel
+BuildRequires:	totem-pl-parser-devel
+BuildRequires:	tracker-devel
+%if 0%{?fedora}
+BuildRequires:	gmime-devel
+%endif
 BuildRequires:	libdmapsharing-devel
 BuildRequires:	json-glib-devel
-BuildRequires:	libgcrypt-devel
 
-Requires:	grilo >= 0.2.4
-Requires:	gupnp >= 0.13.0
-Requires:	gupnp-av >= 0.5.0
-# For the documentation directories
-Requires:	yelp
-
-BuildRequires: autoconf automake intltool libtool gnome-common
-Patch1: 0001-Use-copy-paste-instead-of-gmime.patch
+Requires:	dleyna-server
+Requires:	gnome-online-accounts%{_isa} >= %{goa_version}
+Requires:	grilo%{_isa} >= %{grilo_version}
 
 %description
 Grilo is a framework that provides access to different sources of
@@ -39,46 +50,49 @@ multimedia content, using a pluggable system.
 This package contains plugins to get information from theses sources:
 - Apple Trailers
 - Bookmarks
+- Euronews
 - Filesystem
 - Flickr
+- Freebox
 - Gravatar
 - iTunes Music Sharing
 - Jamendo
 - Last.fm (for album arts)
 - Local metadata (album arts and thumbnails)
 - Metadata Store
+- Pocket
 - Podcasts
+- Radio France
 - Shoutcast
+- The Guardian Videos
 - Tracker
-- UPnP
 - Vimeo
 - Youtube
 
 %prep
 %setup -q
-%patch1 -p1
-
-autoreconf -i -f
 
 %build
 %configure				\
 	--disable-static		\
-	--disable-fakemetadata		\
 	--disable-shoutcast		\
-	--enable-apple-trailers		\
 	--enable-bookmarks		\
+	--enable-dleyna			\
 	--enable-dmap			\
 	--enable-filesystem		\
 	--enable-flickr			\
+	--enable-freebox		\
 	--enable-gravatar		\
 	--enable-jamendo		\
-	--enable-lastfm-albumart	\
-	--enable-localmetadata		\
+%if 0%{?fedora}
+	--enable-lua-factory		\
+%endif
 	--enable-metadata-store		\
+%if 0%{?fedora}
 	--enable-podcasts		\
+%endif
 	--enable-tmdb			\
 	--enable-tracker		\
-	--enable-upnp			\
 	--enable-vimeo			\
 	--enable-youtube		\
 	--enable-tracker
@@ -90,21 +104,67 @@ make %{?_smp_mflags}
 
 
 %install
-make install DESTDIR=$RPM_BUILD_ROOT
+%make_install
 
 # Remove files that will not be packaged
 rm -f $RPM_BUILD_ROOT%{_libdir}/grilo-%{release_version}/*.la
 rm -f $RPM_BUILD_ROOT%{_bindir}/*
 
-%files
-%doc AUTHORS COPYING NEWS README
+%find_lang grilo-plugins --with-gnome
+
+%files -f grilo-plugins.lang
+%license COPYING
+%doc AUTHORS NEWS README
+%doc %{_datadir}/help/C/examples/example-tmdb.c
+%if 0%{?fedora}
+%{_datadir}/grilo-plugins/
+%endif
 %{_libdir}/grilo-%{release_version}/*.so*
-%{_libdir}/grilo-%{release_version}/*.xml
-%{_datadir}/gnome/help/grilo-plugins/examples/example-tmdb.c
-%{_datadir}/gnome/help/grilo-plugins/C/grilo-plugins.xml
-%{_datadir}/gnome/help/grilo-plugins/C/legal.xml
 
 %changelog
+* Tue Feb 14 2017 Kalev Lember <klember@redhat.com> - 0.3.4-1
+- Update to 0.3.4
+- Resolves: #1386975
+
+* Mon Sep 07 2015 Bastien Nocera <bnocera@redhat.com> 0.2.14-8
+- Fix crash in YouTube plugin
+Resolves: #1258811
+
+* Fri Sep 04 2015 Bastien Nocera <bnocera@redhat.com> 0.2.14-7
+- Enable the libdmapsharing plugin
+Related: #1221283
+
+* Thu Sep 03 2015 Bastien Nocera <bnocera@redhat.com> 0.2.14-6
+- Enable a number of missing plugins
+Related: #1184200
+- Disable blip.tv plugin as service has now closed
+- Add patch to downgrade the gom requirements
+- Port back local-metadata plugin to libmediaart-1.0
+
+* Thu Sep 03 2015 Bastien Nocera <bnocera@redhat.com> 0.2.14-5
+- Rebuild
+Related: #1184200
+
+* Wed Jul 01 2015 Debarshi Ray <rishi@fedoraproject.org> 0.2.14-4
+- Un-conditionalize dleyna-server requirement
+Related: #1174536
+
+* Thu May 14 2015 Ray Strode <rstrode@redhat.com> 0.2.14-3
+- Rebuild against new totem-pl-parser
+Related: #1174536
+
+* Fri May 08 2015 Ray Strode <rstrode@redhat.com> 0.2.14-2
+- Conditionalize out dleyna-server for now
+Related: #1174536
+
+* Mon May 04 2015 Bastien Nocera <bnocera@redhat.com> 0.2.14-1
+- Update to 0.2.14
+Resolves: #1174536
+
+* Thu Mar 19 2015 Richard Hughes <rhughes@redhat.com> - 0.2.13-1
+- Update to 0.2.13
+- Resolves: #1174536
+
 * Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.2.6-4
 - Mass rebuild 2014-01-24
 

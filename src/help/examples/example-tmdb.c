@@ -57,10 +57,6 @@ resolve_cb (GrlSource *src, guint operation_id, GrlMedia *media, gpointer user_d
 
 int main (int argc, char *argv[])
 {
-#if !GLIB_CHECK_VERSION(2,35,0)
-  g_type_init ();
-#endif
-
   grl_init (&argc, &argv);
 
   /*
@@ -71,14 +67,15 @@ int main (int argc, char *argv[])
   GrlConfig *config = grl_config_new (TMDB_PLUGIN_ID, NULL);
   grl_config_set_api_key (config, TMDB_KEY);
   grl_registry_add_config (reg, config, NULL);
+  grl_registry_load_all_plugins (reg, FALSE, NULL);
 
   /*
    * Get the plugin:
    */
   GError *error = NULL;
-  gboolean plugin_loaded =
-    grl_registry_load_plugin_by_id (reg, TMDB_PLUGIN_ID, &error);
-  g_assert (plugin_loaded);
+  gboolean plugin_activated =
+    grl_registry_activate_plugin_by_id (reg, TMDB_PLUGIN_ID, &error);
+  g_assert (plugin_activated);
   g_assert_no_error (error);
 
   /*
@@ -144,6 +141,11 @@ int main (int argc, char *argv[])
   g_object_unref (media);
   g_object_unref (config);
   g_object_unref (options);
+
+  /*
+   * Deinitialize Grilo:
+   */
+  grl_deinit ();
 }
 
 

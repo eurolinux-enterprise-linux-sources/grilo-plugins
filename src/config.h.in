@@ -1,19 +1,19 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Apple Trailers plugin ID */
-#undef APPLE_TRAILERS_PLUGIN_ID
-
-/* Blip.tv plugin ID */
-#undef BLIPTV_PLUGIN_ID
-
 /* Bookmarks plugin ID */
 #undef BOOKMARKS_PLUGIN_ID
 
-/* DMAP plugin ID */
-#undef DMAP_PLUGIN_ID
+/* chromaprint plugin ID */
+#undef CHROMAPRINT_PLUGIN_ID
 
-/* Fake metadata plugin ID */
-#undef FAKEMETADATA_PLUGIN_ID
+/* DAAP plugin ID */
+#undef DAAP_PLUGIN_ID
+
+/* dLeyna DLNA plugin ID */
+#undef DLEYNA_PLUGIN_ID
+
+/* DPAP plugin ID */
+#undef DPAP_PLUGIN_ID
 
 /* Filesystem plugin ID */
 #undef FILESYSTEM_PLUGIN_ID
@@ -21,8 +21,23 @@
 /* Flickr plugin ID */
 #undef FLICKR_PLUGIN_ID
 
+/* Freebox plugin ID */
+#undef FREEBOX_PLUGIN_ID
+
+/* The domain to use with gettext */
+#undef GETTEXT_PACKAGE
+
+/* Let plugins use goa */
+#undef GOA_ENABLED
+
 /* Gravatar plugin ID */
 #undef GRAVATAR_PLUGIN_ID
+
+/* plugins major version */
+#undef GRL_MAJOR
+
+/* plugins minor version */
+#undef GRL_MINOR
 
 /* Plugins directory */
 #undef GRL_PLUGINS_DIR
@@ -32,9 +47,6 @@
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
-
-/* libgdata is 0.9.1 or higher */
-#undef HAVE_LIBGDATA_0_9
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
@@ -57,27 +69,32 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
 
+/* totem-plparser-mini is available */
+#undef HAVE_TOTEM_PLPARSER_MINI
+
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
 /* Jamendo plugin ID */
 #undef JAMENDO_PLUGIN_ID
 
-/* Last.fm album art plugin ID */
-#undef LASTFM_ALBUMART_PLUGIN_ID
-
 /* Local metadata plugin ID */
-#undef LOCALMETADATA_PLUGIN_ID
+#undef LOCAL_METADATA_PLUGIN_ID
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #undef LT_OBJDIR
+
+/* Lua Factory plugin ID */
+#undef LUA_FACTORY_PLUGIN_ID
+
+/* Magnatune plugin ID */
+#undef MAGNATUNE_PLUGIN_ID
 
 /* Metadata Store plugin ID */
 #undef METADATA_STORE_PLUGIN_ID
 
-/* Define to 1 if your C compiler doesn't accept -c and -o together. */
-#undef NO_MINUS_C_MINUS_O
+/* OpenSubtitles plugin ID */
+#undef OPENSUBTITLES_PLUGIN_ID
 
 /* Optical Media plugin ID */
 #undef OPTICAL_MEDIA_PLUGIN_ID
@@ -115,14 +132,14 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* thetvdb plugin ID */
+#undef THETVDB_PLUGIN_ID
+
 /* TMDb plugin ID */
 #undef TMDB_PLUGIN_ID
 
 /* Tracker plugin ID */
 #undef TRACKER_PLUGIN_ID
-
-/* UPnP plugin ID */
-#undef UPNP_PLUGIN_ID
 
 /* Version number of package */
 #undef VERSION

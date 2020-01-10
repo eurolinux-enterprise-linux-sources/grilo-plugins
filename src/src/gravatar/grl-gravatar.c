@@ -29,6 +29,8 @@
 
 #include "grl-gravatar.h"
 
+#include <glib/gi18n-lib.h>
+
 /* ---------- Logging ---------- */
 
 #define GRL_LOG_DOMAIN_DEFAULT gravatar_log_domain
@@ -36,15 +38,13 @@ GRL_LOG_DOMAIN_STATIC(gravatar_log_domain);
 
 /* -------- Gravatar API -------- */
 
-#define GRAVATAR_URL "http://www.gravatar.com/avatar/%s.jpg"
+#define GRAVATAR_URL "https://www.gravatar.com/avatar/%s.jpg"
 
 /* ------- Pluging Info -------- */
 
-#define PLUGIN_ID   GRAVATAR_PLUGIN_ID
-
-#define SOURCE_ID   PLUGIN_ID
-#define SOURCE_NAME "Avatar provider from Gravatar"
-#define SOURCE_DESC "A plugin to get avatars for artist and author fields"
+#define SOURCE_ID   GRAVATAR_PLUGIN_ID
+#define SOURCE_NAME _("Avatar provider from Gravatar")
+#define SOURCE_DESC _("A plugin to get avatars for artist and author fields")
 
 static GrlGravatarSource *grl_gravatar_source_new (void);
 
@@ -59,6 +59,7 @@ static gboolean grl_gravatar_source_may_resolve (GrlSource *source,
                                                  GList **missing_keys);
 
 static GrlKeyID register_gravatar_key (GrlRegistry *registry,
+                                       GrlKeyID bind_key,
                                        const gchar *name,
                                        const gchar *nick,
                                        const gchar *blurb);
@@ -81,32 +82,15 @@ grl_gravatar_source_plugin_init (GrlRegistry *registry,
 
   GRL_DEBUG ("grl_gravatar_source_plugin_init");
 
-  /* Register keys */
-  GRL_METADATA_KEY_ARTIST_AVATAR =
-    register_gravatar_key (registry,
-                           "artist-avatar",
-                           "ArtistAvatar",
-                           "Avatar for the artist");
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 
-  GRL_METADATA_KEY_AUTHOR_AVATAR =
-    register_gravatar_key (registry,
-                           "author-avatar",
-                            "AuthorAvatar",
-                            "Avatar for the author");
   if (!GRL_METADATA_KEY_ARTIST_AVATAR &&
       !GRL_METADATA_KEY_AUTHOR_AVATAR) {
-    GRL_WARNING ("Unable to register \"autor-avatar\" nor \"artist-avatar\"");
+    GRL_WARNING ("Unable to register \"author-avatar\" nor \"artist-avatar\"");
     return FALSE;
   }
-
-  /* Create relationship */
-  grl_registry_register_metadata_key_relation (registry,
-                                               GRL_METADATA_KEY_ARTIST,
-                                               GRL_METADATA_KEY_ARTIST_AVATAR);
-
-  grl_registry_register_metadata_key_relation (registry,
-                                               GRL_METADATA_KEY_AUTHOR,
-                                               GRL_METADATA_KEY_AUTHOR_AVATAR);
 
   GrlGravatarSource *source = grl_gravatar_source_new ();
   grl_registry_register_source (registry,
@@ -116,9 +100,37 @@ grl_gravatar_source_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_gravatar_source_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+static void
+grl_gravatar_source_plugin_register_keys (GrlRegistry *registry,
+                                          GrlPlugin   *plugin)
+{
+  GRL_METADATA_KEY_ARTIST_AVATAR =
+    register_gravatar_key (registry,
+                           GRL_METADATA_KEY_ARTIST,
+                           "artist-avatar",
+                           "ArtistAvatar",
+                           "Avatar for the artist");
+
+  GRL_METADATA_KEY_AUTHOR_AVATAR =
+    register_gravatar_key (registry,
+                           GRL_METADATA_KEY_AUTHOR,
+                           "author-avatar",
+                            "AuthorAvatar",
+                            "Avatar for the author");
+}
+
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   GRAVATAR_PLUGIN_ID,
+                   "Avatar provider from Gravatar",
+                   "A plugin to get avatars for artist and author fields",
+                   "Igalia S.L.",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_gravatar_source_plugin_init,
+                   NULL,
+                   grl_gravatar_source_plugin_register_keys);
 
 /* ================== Gravatar GObject ================ */
 
@@ -156,6 +168,7 @@ G_DEFINE_TYPE (GrlGravatarSource,
 
 static GrlKeyID
 register_gravatar_key (GrlRegistry *registry,
+                       GrlKeyID bind_key,
                        const gchar *name,
                        const gchar *nick,
                        const gchar *blurb)
@@ -169,8 +182,7 @@ register_gravatar_key (GrlRegistry *registry,
                               NULL,
                               G_PARAM_READWRITE);
 
-  key = grl_registry_register_metadata_key (registry, spec, NULL);
-  g_param_spec_unref (spec);
+  key = grl_registry_register_metadata_key (registry, spec, bind_key, NULL);
 
   /* If key was not registered, could be that it is already registered. If so,
      check if type is the expected one, and reuse it */

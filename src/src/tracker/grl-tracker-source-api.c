@@ -57,33 +57,40 @@ GRL_LOG_DOMAIN_STATIC(tracker_source_result_log_domain);
 
 /* ------- Definitions ------- */
 
-#define TRACKER_QUERY_REQUEST                   \
-  "SELECT rdf:type(?urn) %s "                   \
-  "WHERE { %s . %s } "                          \
-  "ORDER BY DESC(nfo:fileLastModified(?urn)) "  \
+#define TRACKER_QUERY_LIMIT                     \
   "OFFSET %u "                                  \
   "LIMIT %u"
 
-#define TRACKER_SEARCH_REQUEST                  \
+#define TRACKER_QUERY_PARTIAL_REQUEST           \
   "SELECT rdf:type(?urn) %s "                   \
+  "WHERE { %s . %s } "                          \
+  "ORDER BY DESC(nfo:fileLastModified(?urn)) "  \
+  TRACKER_QUERY_LIMIT
+
+#define TRACKER_QUERY_FULL_REQUEST              \
+  "%s "                                         \
+  TRACKER_QUERY_LIMIT
+
+#define TRACKER_SEARCH_REQUEST                  \
+  "SELECT DISTINCT rdf:type(?urn) %s "          \
   "WHERE "                                      \
   "{ "                                          \
   "%s "                                         \
   "?urn tracker:available ?tr . "               \
-  "?urn fts:match '*%s*' . "                    \
-  "%s "                                         \
+  "?urn fts:match \"%s\" . "                    \
+  "%s %s "                                      \
   "} "                                          \
   "ORDER BY DESC(nfo:fileLastModified(?urn)) "  \
   "OFFSET %u "                                  \
   "LIMIT %u"
 
 #define TRACKER_SEARCH_ALL_REQUEST              \
-  "SELECT rdf:type(?urn) %s "                   \
+  "SELECT DISTINCT rdf:type(?urn) %s "          \
   "WHERE "                                      \
   "{ "                                          \
   "%s "                                         \
   "?urn tracker:available ?tr . "               \
-  "%s "                                         \
+  "%s %s "                                      \
   "} "                                          \
   "ORDER BY DESC(nfo:fileLastModified(?urn)) "  \
   "OFFSET %u "                                  \
@@ -99,6 +106,7 @@ GRL_LOG_DOMAIN_STATIC(tracker_source_result_log_domain);
   "?urn a %s . "                                \
   "?urn nie:isStoredAs ?file . "                \
   "?file tracker:available ?tr . "              \
+  "%s "                                         \
   "%s "                                         \
   "} "                                          \
   "ORDER BY DESC(nfo:fileLastModified(?urn)) "  \
@@ -148,9 +156,41 @@ GRL_LOG_DOMAIN_STATIC(tracker_source_result_log_domain);
   "?urn nie:url \"%s\" "                        \
   "}"
 
+#define TRACKER_DELETE_REQUEST                          \
+  "DELETE { <%s> %s } WHERE { <%s> a nfo:Media . %s }"
+
 #define TRACKER_SAVE_REQUEST                            \
   "DELETE { <%s> %s } WHERE { <%s> a nfo:Media . %s } " \
   "INSERT { <%s> a nfo:Media ; %s . }"
+
+#define TRACKER_TEST_MEDIA_FROM_URI_REQUEST             \
+  "SELECT ?urn "                                        \
+  "WHERE "                                              \
+  "{ "                                                  \
+  "?urn nie:url \"%s\" ; "                              \
+  "tracker:available true ; "                           \
+  "a nfo:Media . "                                      \
+  "%s "                                                 \
+  "}"
+
+#define TRACKER_TEST_MEDIA_FROM_URI_REQUEST_WITH_DOCUMENTS  \
+  "SELECT ?urn "                                            \
+  "WHERE "                                                  \
+  "{ "                                                      \
+  "?urn nie:url \"%s\" ; "                                  \
+  "tracker:available true . "                               \
+  "%s "                                                     \
+  "FILTER (?type IN ( nfo:Media, nfo:Document ))"           \
+  "}"
+
+#define TRACKER_MEDIA_FROM_URI_REQUEST          \
+  "SELECT rdf:type(?urn) %s "                   \
+  "WHERE "                                      \
+  "{ "                                          \
+  "?urn nie:url \"%s\" ; "                      \
+  "tracker:available ?tr . "                    \
+  "%s "                                         \
+  "} "                                          \
 
 /**/
 
@@ -167,6 +207,39 @@ static GHashTable *grl_tracker_operations;
 /**/
 
 static void
+set_title_from_filename (GrlMedia *media)
+{
+  const gchar *url;
+  gchar *path, *display_name, *ext, *title;
+  guint suffix_len;
+
+  url = grl_media_get_url (media);
+  if (url == NULL)
+    return;
+
+  path = g_filename_from_uri (url, NULL, NULL);
+  if (!path)
+    return;
+  display_name = g_filename_display_basename (path);
+  g_free (path);
+  ext = strrchr (display_name, '.');
+  if (!ext)
+    goto out;
+
+  suffix_len = strlen (ext);
+  if (suffix_len != 4 && suffix_len != 5)
+    goto out;
+
+  title = g_strndup (display_name, ext - display_name);
+  if (g_strcmp0 (grl_media_get_title (media), title) == 0)
+    grl_data_set_boolean (GRL_DATA (media), GRL_METADATA_KEY_TITLE_FROM_FILENAME, TRUE);
+  g_free (title);
+
+out:
+  g_free (display_name);
+}
+
+static void
 fill_grilo_media_from_sparql (GrlTrackerSource    *source,
                               GrlMedia            *media,
                               TrackerSparqlCursor *cursor,
@@ -177,18 +250,28 @@ fill_grilo_media_from_sparql (GrlTrackerSource    *source,
   tracker_grl_sparql_t *assoc =
     grl_tracker_get_mapping_from_sparql (sparql_key);
   union {
-    gint int_val;
+    gint64 int_val;
     gdouble double_val;
     const gchar *str_val;
   } val;
 
-  if (assoc == NULL)
-    return;
+  GrlKeyID grl_key;
+
+  if (assoc == NULL) {
+    /* Maybe the user is setting the key */
+    GrlRegistry *registry = grl_registry_get_default ();
+    grl_key = grl_registry_lookup_metadata_key (registry, sparql_key);
+    if (grl_key == GRL_METADATA_KEY_INVALID) {
+      return;
+    }
+  } else {
+    grl_key = assoc->grl_key;
+  }
 
   GRL_ODEBUG ("\tSetting media prop (col=%i/var=%s/prop=%s) %s",
               column,
               sparql_key,
-              GRL_METADATA_KEY_GET_NAME (assoc->grl_key),
+              GRL_METADATA_KEY_GET_NAME (grl_key),
               tracker_sparql_cursor_get_string (cursor, column, NULL));
 
   if (tracker_sparql_cursor_is_bound (cursor, column) == FALSE) {
@@ -196,41 +279,42 @@ fill_grilo_media_from_sparql (GrlTrackerSource    *source,
     return;
   }
 
-  if (grl_data_has_key (GRL_DATA (media), assoc->grl_key)) {
+  if (grl_data_has_key (GRL_DATA (media), grl_key)) {
     GRL_ODEBUG ("\t\tDropping, already here");
     return;
   }
 
-  if (assoc->set_value) {
+  if (assoc && assoc->set_value) {
     assoc->set_value (cursor, column, media, assoc->grl_key);
   } else {
-    switch (GRL_METADATA_KEY_GET_TYPE (assoc->grl_key)) {
-      case G_TYPE_STRING:
-        /* Cache the source associated to this result. */
-        if (assoc->grl_key == GRL_METADATA_KEY_ID) {
-          grl_tracker_source_cache_add_item (grl_tracker_item_cache,
-                                             tracker_sparql_cursor_get_integer (cursor,
-                                                                                column),
-                                             source);
-        }
-        val.str_val = tracker_sparql_cursor_get_string (cursor, column, NULL);
-        if (val.str_val != NULL)
-          grl_data_set_string (GRL_DATA (media), assoc->grl_key, val.str_val);
-        break;
-
-      case G_TYPE_INT:
-        val.int_val = tracker_sparql_cursor_get_integer (cursor, column);
-        grl_data_set_int (GRL_DATA (media), assoc->grl_key, val.int_val);
-        break;
-
-      case G_TYPE_FLOAT:
-        val.double_val = tracker_sparql_cursor_get_double (cursor, column);
-        grl_data_set_float (GRL_DATA (media), assoc->grl_key, (gfloat) val.double_val);
-        break;
-
-      default:
-        GRL_ODEBUG ("\t\tUnexpected data type");
-        break;
+    GType grl_type = GRL_METADATA_KEY_GET_TYPE (grl_key);
+    if (grl_type == G_TYPE_STRING) {
+      /* Cache the source associated to this result. */
+      if (grl_key == GRL_METADATA_KEY_ID) {
+        grl_tracker_source_cache_add_item (grl_tracker_item_cache,
+                                           tracker_sparql_cursor_get_integer (cursor,
+                                                                              column),
+                                           source);
+      }
+      val.str_val = tracker_sparql_cursor_get_string (cursor, column, NULL);
+      if (val.str_val != NULL)
+        grl_data_set_string (GRL_DATA (media), grl_key, val.str_val);
+    } else if (grl_type == G_TYPE_INT) {
+      val.int_val = tracker_sparql_cursor_get_integer (cursor, column);
+      grl_data_set_int (GRL_DATA (media), grl_key, val.int_val);
+    } else if (grl_type == G_TYPE_INT64) {
+      val.int_val = tracker_sparql_cursor_get_integer (cursor, column);
+      grl_data_set_int64 (GRL_DATA (media), grl_key, val.int_val);
+    } else if (grl_type == G_TYPE_FLOAT) {
+      val.double_val = tracker_sparql_cursor_get_double (cursor, column);
+      grl_data_set_float (GRL_DATA (media), grl_key, (gfloat) val.double_val);
+    } else if (grl_type == G_TYPE_DATE_TIME) {
+      val.str_val = tracker_sparql_cursor_get_string (cursor, column, NULL);
+      GDateTime *date_time = grl_date_time_from_iso8601 (val.str_val);
+      grl_data_set_boxed (GRL_DATA (media), grl_key, date_time);
+      g_date_time_unref (date_time);
+    } else {
+      GRL_ODEBUG ("\t\tUnexpected data type");
     }
   }
 }
@@ -314,7 +398,7 @@ get_sparql_type_filter (GrlOperationOptions *options,
                                                                         \
         error = g_error_new (GRL_CORE_ERROR,                            \
                              GRL_CORE_ERROR_BROWSE_FAILED,              \
-                             "Failed to start query action : %s",       \
+                             _("Failed to query: %s"),                  \
                              tracker_error->message);                   \
                                                                         \
         spec->callback (spec->source,                      \
@@ -346,7 +430,7 @@ get_sparql_type_filter (GrlOperationOptions *options,
     GRL_ODEBUG ("\tParsing line %i of type %s",                         \
                 os->current, sparql_type);                              \
                                                                         \
-    media = grl_tracker_build_grilo_media (sparql_type);                \
+    media = grl_tracker_build_grilo_media (sparql_type, os->type_filter);\
                                                                         \
     if (media != NULL) {                                                \
       for (col = 1 ;                                                    \
@@ -355,6 +439,7 @@ get_sparql_type_filter (GrlOperationOptions *options,
         fill_grilo_media_from_sparql (GRL_TRACKER_SOURCE (spec->source), \
                                       media, os->cursor, col);          \
       }                                                                 \
+      set_title_from_filename (media);                                  \
                                                                         \
       spec->callback (spec->source,                                     \
                       spec->operation_id,                               \
@@ -396,7 +481,7 @@ get_sparql_type_filter (GrlOperationOptions *options,
                                                                         \
       error = g_error_new (GRL_CORE_ERROR,                              \
                            GRL_CORE_ERROR_BROWSE_FAILED,                \
-                           "Failed to start query action : %s",         \
+                           _("Failed to query: %s"),                    \
                            tracker_error->message);                     \
                                                                         \
       spec->callback (spec->source, spec->operation_id, NULL, 0,           \
@@ -442,7 +527,7 @@ tracker_resolve_cb (GObject      *source_object,
 
     error = g_error_new (GRL_CORE_ERROR,
                         GRL_CORE_ERROR_BROWSE_FAILED,
-                        "Failed to start resolve action : %s",
+                         _("Failed to resolve: %s"),
                          tracker_error->message);
 
     rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, error);
@@ -460,6 +545,7 @@ tracker_resolve_cb (GObject      *source_object,
       fill_grilo_media_from_sparql (GRL_TRACKER_SOURCE (rs->source),
                                     rs->media, cursor, col);
     }
+    set_title_from_filename (rs->media);
 
     rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
   } else {
@@ -467,8 +553,66 @@ tracker_resolve_cb (GObject      *source_object,
   }
 
  end_operation:
-  if (cursor)
-    g_object_unref (G_OBJECT (cursor));
+  g_clear_object (&cursor);
+
+  grl_tracker_queue_done (grl_tracker_queue, os);
+}
+
+static void
+tracker_media_from_uri_cb (GObject      *source_object,
+                           GAsyncResult *result,
+                           GrlTrackerOp *os)
+{
+  GrlSourceMediaFromUriSpec *mfus = (GrlSourceMediaFromUriSpec *) os->data;
+  GrlTrackerSourcePriv      *priv = GRL_TRACKER_SOURCE_GET_PRIVATE (mfus->source);
+  GError                    *tracker_error = NULL, *error = NULL;
+  GrlMedia                  *media;
+  TrackerSparqlCursor       *cursor;
+  const gchar               *sparql_type;
+  gint                       col;
+
+  GRL_ODEBUG ("%s", __FUNCTION__);
+
+  cursor = tracker_sparql_connection_query_finish (priv->tracker_connection,
+                                                   result, &tracker_error);
+
+  if (tracker_error) {
+    GRL_WARNING ("Could not execute sparql media from uri query : %s",
+                 tracker_error->message);
+
+    error = g_error_new (GRL_CORE_ERROR,
+                         GRL_CORE_ERROR_MEDIA_FROM_URI_FAILED,
+                         _("Failed to get media from uri: %s"),
+                         tracker_error->message);
+
+    mfus->callback (mfus->source, mfus->operation_id, NULL, mfus->user_data, error);
+
+    g_error_free (tracker_error);
+    g_error_free (error);
+
+    goto end_operation;
+  }
+
+
+  if (tracker_sparql_cursor_next (cursor, NULL, NULL)) {
+    /* Build grilo media */
+    sparql_type = tracker_sparql_cursor_get_string (cursor, 0, NULL);
+    media = grl_tracker_build_grilo_media (sparql_type, GRL_TYPE_FILTER_NONE);
+
+    /* Translate Sparql result into Grilo result */
+    for (col = 0 ; col < tracker_sparql_cursor_get_n_columns (cursor) ; col++) {
+      fill_grilo_media_from_sparql (GRL_TRACKER_SOURCE (mfus->source),
+                                    media, cursor, col);
+    }
+    set_title_from_filename (media);
+
+    mfus->callback (mfus->source, mfus->operation_id, media, mfus->user_data, NULL);
+  } else {
+    mfus->callback (mfus->source, mfus->operation_id, NULL, mfus->user_data, NULL);
+  }
+
+ end_operation:
+  g_clear_object (&cursor);
 
   grl_tracker_queue_done (grl_tracker_queue, os);
 }
@@ -493,7 +637,7 @@ tracker_store_metadata_cb (GObject      *source_object,
 
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_STORE_METADATA_FAILED,
-                         "Failed to set metadata : %s",
+                         _("Failed to update metadata: %s"),
                          tracker_error->message);
 
     sms->callback (sms->source, sms->media, NULL, sms->user_data, error);
@@ -517,9 +661,58 @@ grl_tracker_source_writable_keys (GrlSource *source)
     keys = grl_metadata_key_list_new (GRL_METADATA_KEY_PLAY_COUNT,
                                       GRL_METADATA_KEY_LAST_PLAYED,
                                       GRL_METADATA_KEY_LAST_POSITION,
+                                      GRL_METADATA_KEY_FAVOURITE,
                                       NULL);
   }
   return keys;
+}
+
+static void
+grl_tracker_source_get_duration_min_max (GrlOperationOptions *options,
+                                         int                 *min,
+                                         int                 *max)
+{
+  GValue *min_val, *max_val;
+
+  grl_operation_options_get_key_range_filter (options, GRL_METADATA_KEY_DURATION,
+                                              &min_val, &max_val);
+  if (min_val)
+    *min = g_value_get_int (min_val);
+  else
+    *min = -1;
+  if (max_val)
+    *max = g_value_get_int (max_val);
+  else
+    *max = -1;
+}
+
+static char *
+grl_tracker_source_create_constraint (int min, int max)
+{
+  if (min <= 0 && max <= 0)
+    return g_strdup ("");
+  if (max <= 0) {
+    return g_strdup_printf ("?urn a nfo:FileDataObject . "
+                            "OPTIONAL {"
+                            "  ?urn nfo:duration ?duration "
+                            "} . "
+                            "FILTER(?duration > %d || !BOUND(?duration))",
+                             min);
+  }
+  if (min <= 0) {
+    return g_strdup_printf ("?urn a nfo:FileDataObject . "
+                            "OPTIONAL {"
+                            "  ?urn nfo:duration ?duration "
+                            "} . "
+                            "FILTER(?duration < %d || !BOUND(?duration))",
+                             max);
+  }
+  return g_strdup_printf ("?urn a nfo:FileDataObject . "
+                          "OPTIONAL {"
+                          "  ?urn nfo:duration ?duration "
+                          "} . "
+                          "FILTER(?duration < %d || ?duration > %d || !BOUND(?duration))",
+                           max, min);
 }
 
 /**
@@ -530,7 +723,7 @@ grl_tracker_source_writable_keys (GrlSource *source)
  *
  * First column must be the media type, and it does not need to be named.  It
  * must match with any value supported in rdf:type() property, or
- * grilo#Box. Types understood are:
+ * grilo#Container. Types understood are:
  *
  * <itemizedlist>
  *   <listitem>
@@ -560,7 +753,7 @@ grl_tracker_source_writable_keys (GrlSource *source)
  *   </listitem>
  *   <listitem>
  *     <para>
- *       <literal>grilo#Box</literal>
+ *       <literal>grilo#Container</literal>
  *     </para>
  *   </listitem>
  * </itemizedlist>
@@ -610,7 +803,7 @@ grl_tracker_source_query (GrlSource *source,
   if (!qs->query || qs->query[0] == '\0') {
     error = g_error_new_literal (GRL_CORE_ERROR,
                                  GRL_CORE_ERROR_QUERY_FAILED,
-                                 "Empty query");
+                                 _("Empty query"));
     goto send_error;
   }
 
@@ -618,7 +811,7 @@ grl_tracker_source_query (GrlSource *source,
   if (g_ascii_strncasecmp (qs->query, "select ", 7) != 0) {
     constraint = grl_tracker_source_get_device_constraint (priv);
     sparql_select = grl_tracker_source_get_select_string (qs->keys);
-    sparql_final = g_strdup_printf (TRACKER_QUERY_REQUEST,
+    sparql_final = g_strdup_printf (TRACKER_QUERY_PARTIAL_REQUEST,
                                     sparql_select,
                                     qs->query,
                                     constraint,
@@ -628,11 +821,15 @@ grl_tracker_source_query (GrlSource *source,
     g_free (qs->query);
     g_free (sparql_select);
     qs->query = sparql_final;
-    grl_tracker_source_query (source, qs);
-    return;
+  } else {
+    /* Append offset and limit */
+    sparql_final = g_strdup_printf (TRACKER_QUERY_FULL_REQUEST,
+                                    qs->query,
+                                    skip,
+                                    count);
+    g_free (qs->query);
+    qs->query = sparql_final;
   }
-
-  GRL_IDEBUG ("\tselect : '%s'", qs->query);
 
   os = grl_tracker_op_initiate_query (qs->operation_id,
                                       g_strdup (qs->query),
@@ -642,6 +839,7 @@ grl_tracker_source_query (GrlSource *source,
   os->keys  = qs->keys;
   os->skip  = skip;
   os->count = count;
+  os->type_filter = grl_operation_options_get_type_filter (qs->options);
   os->data  = qs;
   /* os->cb.sr     = qs->callback; */
   /* os->user_data = qs->user_data; */
@@ -708,12 +906,9 @@ grl_tracker_source_resolve (GrlSource *source,
 
   grl_tracker_queue_push (grl_tracker_queue, os);
 
-  if (sparql_type_filter != NULL)
-    g_free (sparql_type_filter);
-  if (constraint != NULL)
-    g_free (constraint);
-  if (sparql_select != NULL)
-    g_free (sparql_select);
+  g_clear_pointer (&sparql_type_filter, g_free);
+  g_clear_pointer (&constraint, g_free);
+  g_clear_pointer (&sparql_select, g_free);
 }
 
 gboolean
@@ -760,10 +955,17 @@ grl_tracker_source_store_metadata (GrlSource *source,
   sparql_delete = grl_tracker_get_delete_string (sms->keys);
   sparql_cdelete = grl_tracker_get_delete_conditional_string (urn, sms->keys);
   sparql_insert = grl_tracker_tracker_get_insert_string (sms->media, sms->keys);
-  sparql_final = g_strdup_printf (TRACKER_SAVE_REQUEST,
-                                  urn, sparql_delete,
-                                  urn, sparql_cdelete,
-                                  urn, sparql_insert);
+
+  if (g_strcmp0 (sparql_insert, "") == 0) {
+    sparql_final = g_strdup_printf (TRACKER_DELETE_REQUEST,
+                                    urn, sparql_delete,
+                                    urn, sparql_cdelete);
+  } else {
+    sparql_final = g_strdup_printf (TRACKER_SAVE_REQUEST,
+                                    urn, sparql_delete,
+                                    urn, sparql_cdelete,
+                                    urn, sparql_insert);
+  }
 
   os = grl_tracker_op_initiate_set_metadata (sparql_final,
                                              (GAsyncReadyCallback) tracker_store_metadata_cb,
@@ -787,24 +989,30 @@ grl_tracker_source_search (GrlSource *source, GrlSourceSearchSpec *ss)
   gchar                *sparql_select;
   gchar                *sparql_final;
   gchar                *sparql_type_filter;
+  gchar                *escaped_text;
   GrlTrackerOp         *os;
   gint count = grl_operation_options_get_count (ss->options);
   guint skip = grl_operation_options_get_skip (ss->options);
-
+  int min_dur, max_dur;
+  char *duration_constraint;
   GRL_IDEBUG ("%s: id=%u", __FUNCTION__, ss->operation_id);
 
   constraint = grl_tracker_source_get_device_constraint (priv);
   sparql_select = grl_tracker_source_get_select_string (ss->keys);
   sparql_type_filter = get_sparql_type_filter (ss->options, FALSE);
+  grl_tracker_source_get_duration_min_max (ss->options, &min_dur, &max_dur);
+  duration_constraint = grl_tracker_source_create_constraint (min_dur, max_dur);
   if (!ss->text || ss->text[0] == '\0') {
     /* Search all */
     sparql_final = g_strdup_printf (TRACKER_SEARCH_ALL_REQUEST, sparql_select,
-                                    constraint, sparql_type_filter,
+                                    constraint, duration_constraint, sparql_type_filter,
                                     skip, count);
   } else {
+    escaped_text = tracker_sparql_escape_string (ss->text);
     sparql_final = g_strdup_printf (TRACKER_SEARCH_REQUEST, sparql_select,
-                                    sparql_type_filter, ss->text,
-                                    constraint, skip, count);
+                                    sparql_type_filter, escaped_text,
+                                    constraint, duration_constraint, skip, count);
+    g_free (escaped_text);
   }
 
   GRL_IDEBUG ("\tselect: '%s'", sparql_final);
@@ -816,12 +1024,24 @@ grl_tracker_source_search (GrlSource *source, GrlSourceSearchSpec *ss)
   os->keys  = ss->keys;
   os->skip  = skip;
   os->count = count;
+  os->type_filter = grl_operation_options_get_type_filter (ss->options);
 
   grl_tracker_queue_push (grl_tracker_queue, os);
 
   g_free (constraint);
   g_free (sparql_select);
   g_free (sparql_type_filter);
+  g_free (duration_constraint);
+}
+
+static gboolean
+is_root_box (GrlMedia *container)
+{
+  if (container == NULL)
+    return TRUE;
+  if (!grl_media_get_id (container))
+    return TRUE;
+  return FALSE;
 }
 
 static void
@@ -839,10 +1059,48 @@ grl_tracker_source_browse_category (GrlSource *source,
   gint count = grl_operation_options_get_count (bs->options);
   guint skip = grl_operation_options_get_skip (bs->options);
   GrlTypeFilter filter = grl_operation_options_get_type_filter (bs->options);
+  int min_dur, max_dur;
+  char *duration_constraint;
 
   GRL_IDEBUG ("%s: id=%u", __FUNCTION__, bs->operation_id);
 
-  if (bs->container == NULL ||
+  /* If the category is missing, try to get it from the
+   * container's ID */
+  if (!is_root_box (bs->container) &&
+      !grl_data_has_key (GRL_DATA (bs->container),
+                         grl_metadata_key_tracker_category)) {
+    const char *id;
+
+    id = grl_media_get_id (bs->container);
+    if (g_strcmp0 (id, "documents") == 0)
+      category = "nfo:Document";
+    else if (g_strcmp0 (id, "music") == 0)
+      category = "nmm:MusicPiece";
+    else if (g_strcmp0 (id, "photos") == 0)
+      category = "nmm:Photo";
+    else if (g_strcmp0 (id, "videos") == 0)
+      category = "nmm:Video";
+    else {
+      GError *error;
+
+      error = g_error_new (GRL_CORE_ERROR,
+                           GRL_CORE_ERROR_BROWSE_FAILED,
+                           _("ID '%s' is not known in this source"),
+                           id);
+
+      bs->callback (bs->source, bs->operation_id, NULL, 0,
+                    bs->user_data, error);
+
+      g_error_free (error);
+      return;
+    }
+
+    grl_data_set_string (GRL_DATA (bs->container),
+                         grl_metadata_key_tracker_category,
+                         category);
+  }
+
+  if (is_root_box (bs->container) ||
       !grl_data_has_key (GRL_DATA (bs->container),
                          grl_metadata_key_tracker_category)) {
     /* Hardcoded categories */
@@ -882,8 +1140,9 @@ grl_tracker_source_browse_category (GrlSource *source,
       }
     } else {
       if (remaining == 4) {
-        media = grl_media_box_new ();
+        media = grl_media_container_new ();
         grl_media_set_title (media, "Documents");
+        grl_media_set_id (media, "documents");
         grl_data_set_string (GRL_DATA (media),
                              grl_metadata_key_tracker_category,
                              "nfo:Document");
@@ -892,8 +1151,9 @@ grl_tracker_source_browse_category (GrlSource *source,
       }
 
       if (filter & GRL_TYPE_FILTER_AUDIO) {
-        media = grl_media_box_new ();
+        media = grl_media_container_new ();
         grl_media_set_title (media, "Music");
+        grl_media_set_id (media, "music");
         grl_data_set_string (GRL_DATA (media),
                              grl_metadata_key_tracker_category,
                              "nmm:MusicPiece");
@@ -902,8 +1162,9 @@ grl_tracker_source_browse_category (GrlSource *source,
       }
 
       if (filter & GRL_TYPE_FILTER_IMAGE) {
-        media = grl_media_box_new ();
+        media = grl_media_container_new ();
         grl_media_set_title (media, "Photos");
+        grl_media_set_id (media, "photos");
         grl_data_set_string (GRL_DATA (media),
                              grl_metadata_key_tracker_category,
                              "nmm:Photo");
@@ -912,8 +1173,9 @@ grl_tracker_source_browse_category (GrlSource *source,
       }
 
       if (filter & GRL_TYPE_FILTER_VIDEO) {
-        media = grl_media_box_new ();
+        media = grl_media_container_new ();
         grl_media_set_title (media, "Videos");
+        grl_media_set_id (media, "videos");
         grl_data_set_string (GRL_DATA (media),
                              grl_metadata_key_tracker_category,
                              "nmm:Video");
@@ -927,12 +1189,15 @@ grl_tracker_source_browse_category (GrlSource *source,
                                     grl_metadata_key_tracker_category);
   }
 
+  grl_tracker_source_get_duration_min_max (bs->options, &min_dur, &max_dur);
+  duration_constraint = grl_tracker_source_create_constraint (min_dur, max_dur);
   constraint = grl_tracker_source_get_device_constraint (priv);
   sparql_select = grl_tracker_source_get_select_string (bs->keys);
   sparql_final = g_strdup_printf (TRACKER_BROWSE_CATEGORY_REQUEST,
                                   sparql_select,
                                   category,
                                   constraint,
+                                  duration_constraint,
                                   skip, count);
 
   GRL_IDEBUG ("\tselect: '%s'", sparql_final);
@@ -944,11 +1209,13 @@ grl_tracker_source_browse_category (GrlSource *source,
   os->keys  = bs->keys;
   os->skip  = skip;
   os->count = count;
+  os->type_filter = grl_operation_options_get_type_filter (bs->options);
 
   grl_tracker_queue_push (grl_tracker_queue, os);
 
   g_free (constraint);
   g_free (sparql_select);
+  g_free (duration_constraint);
 }
 
 static void
@@ -963,12 +1230,16 @@ grl_tracker_source_browse_filesystem (GrlSource *source,
   GrlTrackerOp         *os;
   gint count = grl_operation_options_get_count (bs->options);
   guint skip = grl_operation_options_get_skip (bs->options);
+  int min_dur, max_dur;
+  char *duration_constraint;
 
   GRL_IDEBUG ("%s: id=%u", __FUNCTION__, bs->operation_id);
 
   sparql_select = grl_tracker_source_get_select_string (bs->keys);
   constraint = grl_tracker_source_get_device_constraint (priv);
   sparql_type_filter = get_sparql_type_filter (bs->options, TRUE);
+  grl_tracker_source_get_duration_min_max (bs->options, &min_dur, &max_dur);
+  duration_constraint = grl_tracker_source_create_constraint (min_dur, max_dur);
 
   if (bs->container == NULL ||
       !grl_media_get_id (bs->container)) {
@@ -998,18 +1269,24 @@ grl_tracker_source_browse_filesystem (GrlSource *source,
   os->keys  = bs->keys;
   os->skip  = skip;
   os->count = count;
+  os->type_filter = grl_operation_options_get_type_filter (bs->options);
 
   grl_tracker_queue_push (grl_tracker_queue, os);
 
   g_free (sparql_type_filter);
   g_free (constraint);
   g_free (sparql_select);
+  g_free (duration_constraint);
 }
 
 void
 grl_tracker_source_browse (GrlSource *source,
                            GrlSourceBrowseSpec *bs)
 {
+  /* Ensure GRL_METADATA_KEY_ID is always requested */
+  if (!g_list_find (bs->keys, GRLKEYID_TO_POINTER (GRL_METADATA_KEY_ID)))
+    bs->keys = g_list_prepend (bs->keys, GRLKEYID_TO_POINTER (GRL_METADATA_KEY_ID));
+
   if (grl_tracker_browse_filesystem)
     grl_tracker_source_browse_filesystem (source, bs);
   else
@@ -1055,21 +1332,8 @@ grl_tracker_source_init_requests (void)
 {
   GrlRegistry *registry = grl_registry_get_default ();
 
-  /* Check if "tracker-category" is registered; if not, the register it */
   grl_metadata_key_tracker_category =
     grl_registry_lookup_metadata_key (registry, "tracker-category");
-
-  if (grl_metadata_key_tracker_category == GRL_METADATA_KEY_INVALID) {
-    grl_metadata_key_tracker_category =
-      grl_registry_register_metadata_key (grl_registry_get_default (),
-                                          g_param_spec_string ("tracker-category",
-                                                               "Tracker category",
-                                                               "Category a media belongs to",
-                                                               NULL,
-                                                               G_PARAM_STATIC_STRINGS |
-                                                               G_PARAM_READWRITE),
-                                          NULL);
-  }
 
   grl_tracker_operations = g_hash_table_new (g_direct_hash, g_direct_equal);
 
@@ -1086,9 +1350,120 @@ grl_tracker_source_get_caps (GrlSource *source,
   static GrlCaps *caps;
 
   if (!caps) {
+    GList *range_list;
     caps = grl_caps_new ();
     grl_caps_set_type_filter (caps, GRL_TYPE_FILTER_ALL);
+    range_list = grl_metadata_key_list_new (GRL_METADATA_KEY_DURATION,
+                                            GRL_METADATA_KEY_INVALID);
+    grl_caps_set_key_range_filter (caps, range_list);
+    g_list_free (range_list);
   }
 
   return caps;
+}
+
+GrlSupportedOps
+grl_tracker_source_supported_operations (GrlSource *source)
+{
+  gboolean is_extractor;
+  GrlSupportedOps ops;
+
+  /* Always supported operations. */
+  ops = GRL_OP_RESOLVE | GRL_OP_MEDIA_FROM_URI | GRL_OP_SEARCH | GRL_OP_QUERY |
+        GRL_OP_STORE_METADATA | GRL_OP_NOTIFY_CHANGE;
+
+  /* The extractor doesn’t support browsing; only resolving. */
+  is_extractor = g_str_has_prefix (grl_source_get_id (source),
+                                   "http://www.tracker-project.org"
+                                   "/ontologies/tracker"
+                                   "#extractor-data-source,");
+  if (!is_extractor) {
+    ops |= GRL_OP_BROWSE;
+  }
+
+  return ops;
+}
+
+gboolean
+grl_tracker_source_test_media_from_uri (GrlSource *source,
+                                        const gchar *uri)
+{
+  GrlTrackerSourcePriv *priv  = GRL_TRACKER_SOURCE_GET_PRIVATE (source);
+  GError               *error = NULL;
+  TrackerSparqlCursor  *cursor;
+  gboolean              empty;
+  gchar                *constraint;
+  gchar                *sparql_final;
+
+  constraint = grl_tracker_source_get_device_constraint (priv);
+  if (grl_tracker_show_documents) {
+    sparql_final = g_strdup_printf (TRACKER_TEST_MEDIA_FROM_URI_REQUEST_WITH_DOCUMENTS,
+                                    uri,
+                                    constraint);
+  } else {
+    sparql_final = g_strdup_printf (TRACKER_TEST_MEDIA_FROM_URI_REQUEST,
+                                    uri,
+                                    constraint);
+  }
+
+  cursor = tracker_sparql_connection_query (grl_tracker_connection,
+                                            sparql_final,
+                                            NULL,
+                                            &error);
+  g_free (constraint);
+  g_free (sparql_final);
+
+  if (error) {
+    GRL_WARNING ("Error when executig sparql query: %s",
+                 error->message);
+    g_error_free (error);
+    return FALSE;
+  }
+
+  /* Check if there are results */
+  if (tracker_sparql_cursor_next (cursor, NULL, NULL)) {
+    empty = FALSE;
+  } else {
+    empty = TRUE;
+  }
+
+  g_object_unref (cursor);
+
+  return !empty;
+}
+
+void
+grl_tracker_source_get_media_from_uri (GrlSource *source,
+                                       GrlSourceMediaFromUriSpec *mfus)
+{
+  GrlTrackerSourcePriv *priv  = GRL_TRACKER_SOURCE_GET_PRIVATE (source);
+  gchar                *constraint;
+  gchar                *sparql_select;
+  gchar                *sparql_final;
+  GrlTrackerOp         *os;
+
+  GRL_IDEBUG ("%s: id=%u", __FUNCTION__, mfus->operation_id);
+
+  /* Ensure GRL_METADATA_KEY_ID is always requested */
+  if (!g_list_find (mfus->keys, GRLKEYID_TO_POINTER (GRL_METADATA_KEY_ID)))
+    mfus->keys = g_list_prepend (mfus->keys, GRLKEYID_TO_POINTER (GRL_METADATA_KEY_ID));
+
+  constraint = grl_tracker_source_get_device_constraint (priv);
+  sparql_select = grl_tracker_source_get_select_string (mfus->keys);
+  sparql_final = g_strdup_printf (TRACKER_MEDIA_FROM_URI_REQUEST,
+                                  sparql_select,
+                                  mfus->uri,
+                                  constraint);
+
+  GRL_IDEBUG ("\tselect: '%s'", sparql_final);
+
+  os = grl_tracker_op_initiate_metadata (sparql_final,
+                                         (GAsyncReadyCallback) tracker_media_from_uri_cb,
+                                         mfus);
+  os->keys  = mfus->keys;
+
+  grl_tracker_queue_push (grl_tracker_queue, os);
+
+  g_free (constraint);
+  g_free (sparql_select);
 }

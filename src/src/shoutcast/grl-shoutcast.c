@@ -28,6 +28,7 @@
 
 #include <grilo.h>
 #include <net/grl-net.h>
+#include <glib/gi18n-lib.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 
@@ -59,11 +60,9 @@ GRL_LOG_DOMAIN_STATIC(shoutcast_log_domain);
 
 /* --- Plugin information --- */
 
-#define PLUGIN_ID   SHOUTCAST_PLUGIN_ID
-
 #define SOURCE_ID   "grl-shoutcast"
 #define SOURCE_NAME "SHOUTcast"
-#define SOURCE_DESC "A source for browsing SHOUTcast radios"
+#define SOURCE_DESC _("A source for browsing SHOUTcast radios")
 
 struct _GrlShoutcastSourcePriv {
   gchar *dev_key;
@@ -134,6 +133,10 @@ grl_shoutcast_plugin_init (GrlRegistry *registry,
 
   GRL_DEBUG ("shoutcast_plugin_init");
 
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+
   if (!configs) {
     GRL_INFO ("Configuration not provided! Plugin not loaded");
     return FALSE;
@@ -162,9 +165,18 @@ grl_shoutcast_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_shoutcast_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   SHOUTCAST_PLUGIN_ID,
+                   "SHOUTcast",
+                   "A plugin for browsing SHOUTcast radios",
+                   "Igalia S.L.",
+                   VERSION,
+                   "LGPL",
+                   "http://www.igalia.com",
+                   grl_shoutcast_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== SHOUTcast GObject ================ */
 
@@ -172,6 +184,10 @@ static GrlShoutcastSource *
 grl_shoutcast_source_new (const gchar *dev_key)
 {
   GrlShoutcastSource *source;
+  const char *tags[] = {
+    "net:internet",
+    NULL
+  };
 
   GRL_DEBUG (__FUNCTION__);
 
@@ -179,7 +195,8 @@ grl_shoutcast_source_new (const gchar *dev_key)
                           "source-id", SOURCE_ID,
                           "source-name", SOURCE_NAME,
                           "source-desc", SOURCE_DESC,
-                          "supported-media", GRL_MEDIA_TYPE_AUDIO,
+                          "supported-media", GRL_SUPPORTED_MEDIA_AUDIO,
+                          "source-tags", tags,
                           NULL);
 
   source->priv->dev_key = g_strdup (dev_key);
@@ -218,20 +235,10 @@ grl_shoutcast_source_finalize (GObject *object)
 {
   GrlShoutcastSource *self = GRL_SHOUTCAST_SOURCE (object);
 
-  if (self->priv->wc && GRL_IS_NET_WC (self->priv->wc))
-    g_object_unref (self->priv->wc);
-
-  if (self->priv->cancellable && G_IS_CANCELLABLE (self->priv->cancellable))
-    g_cancellable_cancel (self->priv->cancellable);
-
-  if (self->priv->cached_page) {
-    g_free (self->priv->cached_page);
-    self->priv->cached_page = NULL;
-  }
-
-  if (self->priv->dev_key) {
-    g_free (self->priv->dev_key);
-  }
+  g_clear_object (&self->priv->wc);
+  g_clear_pointer (&self->priv->cancellable, g_cancellable_cancel);
+  g_clear_pointer (&self->priv->cached_page, g_free);
+  g_clear_pointer (&self->priv->dev_key, g_free);
 
   G_OBJECT_CLASS (grl_shoutcast_source_parent_class)->finalize (object);
 }
@@ -260,7 +267,7 @@ build_media_from_genre (OperationData *op_data)
   if (op_data->media) {
     media = op_data->media;
   } else {
-    media = grl_media_box_new ();
+    media = grl_media_container_new ();
   }
 
   genre_name = (gchar *) xmlGetProp (op_data->xml_entries,
@@ -320,10 +327,9 @@ build_media_from_station (OperationData *op_data)
   grl_media_set_id (media, media_id);
   grl_media_set_title (media, station_name);
   grl_media_set_mime (media, station_mime);
-  grl_media_audio_set_genre (GRL_MEDIA_AUDIO (media), station_genre);
+  grl_media_set_genre (media, station_genre);
   grl_media_set_url (media, media_url);
-  grl_media_audio_set_bitrate (GRL_MEDIA_AUDIO (media),
-                               atoi (station_bitrate));
+  grl_media_set_bitrate (media, atoi (station_bitrate));
 
   g_free (station_name);
   g_free (station_mime);
@@ -331,9 +337,7 @@ build_media_from_station (OperationData *op_data)
   g_free (station_bitrate);
   g_free (media_id);
   g_free (media_url);
-  if (station_genres) {
-    g_strfreev (station_genres);
-  }
+  g_clear_pointer (&station_genres, g_strfreev);
 
   return media;
 }
@@ -391,6 +395,7 @@ xml_parse_result (const gchar *str, OperationData *op_data)
   xmlNodePtr node;
   xmlXPathContextPtr xpath_ctx;
   xmlXPathObjectPtr xpath_res;
+  guint id;
 
   if (op_data->cancelled) {
     op_data->result_cb (op_data->source,
@@ -406,17 +411,17 @@ xml_parse_result (const gchar *str, OperationData *op_data)
   op_data->xml_doc = xmlReadMemory (str, xmlStrlen ((xmlChar*) str), NULL, NULL,
                                     XML_PARSE_RECOVER | XML_PARSE_NOBLANKS);
   if (!op_data->xml_doc) {
-    error = g_error_new (GRL_CORE_ERROR,
-                         op_data->error_code,
-                         "Failed to parse SHOUTcast's response");
+    error = g_error_new_literal (GRL_CORE_ERROR,
+                                 op_data->error_code,
+                                 _("Failed to parse response"));
     goto finalize;
   }
 
   node = xmlDocGetRootElement (op_data->xml_doc);
   if  (!node) {
-    error = g_error_new (GRL_CORE_ERROR,
-                         op_data->error_code,
-                         "Empty response from SHOUTcast");
+    error = g_error_new_literal (GRL_CORE_ERROR,
+                                 op_data->error_code,
+                                 _("Empty response"));
     goto finalize;
   }
 
@@ -454,17 +459,15 @@ xml_parse_result (const gchar *str, OperationData *op_data)
       } else {
         error = g_error_new (GRL_CORE_ERROR,
                              op_data->error_code,
-                             "Can not find media '%s'",
+                             _("Cannot find media %s"),
                              grl_media_get_id (op_data->media));
       }
-      if (xpath_res) {
-        xmlXPathFreeObject (xpath_res);
-      }
+      g_clear_pointer (&xpath_res, xmlXPathFreeObject);
       xmlXPathFreeContext (xpath_ctx);
     } else {
-      error = g_error_new (GRL_CORE_ERROR,
-                           op_data->error_code,
-                           "Can not build xpath context");
+      error = g_error_new_literal (GRL_CORE_ERROR,
+                                   op_data->error_code,
+                                   _("Failed to parse response"));
     }
 
     op_data->resolve_cb (op_data->source,
@@ -498,9 +501,11 @@ xml_parse_result (const gchar *str, OperationData *op_data)
   }
 
   if (stationlist_result) {
-    g_idle_add ((GSourceFunc) send_stationlist_entries, op_data);
+    id = g_idle_add ((GSourceFunc) send_stationlist_entries, op_data);
+    g_source_set_name_by_id (id, "[shoutcast] send_stationlist_entries");
   } else {
-    g_idle_add ((GSourceFunc) send_genrelist_entries, op_data);
+    id = g_idle_add ((GSourceFunc) send_genrelist_entries, op_data);
+    g_source_set_name_by_id (id, "[shoutcast] send_genrelist_entries");
   }
 
   return;
@@ -514,17 +519,10 @@ xml_parse_result (const gchar *str, OperationData *op_data)
                       error);
 
  free_resources:
-  if (op_data->xml_doc) {
-    xmlFreeDoc (op_data->xml_doc);
-  }
+  g_clear_pointer (&op_data->xml_doc, xmlFreeDoc);
+  g_clear_pointer (&op_data->filter_entry, g_free);
+  g_clear_error (&error);
 
-  if (op_data->filter_entry) {
-    g_free (op_data->filter_entry);
-  }
-
-  if (error) {
-    g_error_free (error);
-  }
   g_slice_free (OperationData, op_data);
 }
 
@@ -557,7 +555,7 @@ read_done_cb (GObject *source_object,
                             &wc_error)) {
     error = g_error_new (GRL_CORE_ERROR,
                          op_data->error_code,
-                         "Failed to connect SHOUTcast: '%s'",
+                         _("Failed to connect: %s"),
                          wc_error->message);
     op_data->result_cb (op_data->source,
                         op_data->operation_id,
@@ -575,11 +573,13 @@ read_done_cb (GObject *source_object,
   cache = op_data->cache;
   xml_parse_result (content, op_data);
   if (cache && source->priv->cached_page_expired) {
+    guint id;
     GRL_DEBUG ("Caching page");
     g_free (source->priv->cached_page);
     source->priv->cached_page = g_strdup (content);
     source->priv->cached_page_expired = FALSE;
-    g_timeout_add_seconds (EXPIRE_CACHE_TIMEOUT, expire_cache, source);
+    id = g_timeout_add_seconds (EXPIRE_CACHE_TIMEOUT, expire_cache, source);
+    g_source_set_name_by_id (id, "[shoutcast] expire_cache");
   }
 }
 
@@ -597,8 +597,10 @@ read_url_async (GrlShoutcastSource *source,
                 OperationData *op_data)
 {
   if (op_data->cache && !source->priv->cached_page_expired) {
+    guint id;
     GRL_DEBUG ("Using cached page");
-    g_idle_add ((GSourceFunc) read_cached_page, op_data);
+    id = g_idle_add ((GSourceFunc) read_cached_page, op_data);
+    g_source_set_name_by_id (id, "[shoutcast] read_cached_page");
   } else {
     if (!source->priv->wc)
       source->priv->wc = grl_net_wc_new ();
@@ -750,8 +752,9 @@ grl_shoutcast_source_search (GrlSource *source,
   /* Check if there is text to search */
   if (!ss->text || ss->text[0] == '\0') {
     error = g_error_new (GRL_CORE_ERROR,
-                         GRL_CORE_ERROR_SEARCH_FAILED,
-                         "Search text not specified");
+                         GRL_CORE_ERROR_SEARCH_NULL_UNSUPPORTED,
+                         _("Failed to search: %s"),
+                         _("non-NULL search text is required"));
     ss->callback (ss->source,
                   ss->operation_id,
                   NULL,

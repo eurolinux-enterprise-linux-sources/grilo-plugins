@@ -29,6 +29,7 @@
 #include <libxml/HTMLparser.h>
 #include <string.h>
 #include <net/grl-net.h>
+#include <glib/gi18n-lib.h>
 
 #include "grl-raitv.h"
 
@@ -44,11 +45,11 @@ GRL_LOG_DOMAIN_STATIC(raitv_log_domain);
 #define ROOT_DIR_POPULARS_INDEX	0
 #define ROOT_DIR_RECENTS_INDEX 	1
 
-#define RAITV_POPULARS_ID	"most-popular"
-#define RAITV_POPULARS_NAME	"Most Popular"
+#define RAITV_POPULARS_ID	 "most-popular"
+#define RAITV_POPULARS_NAME N_("Most Popular")
 
 #define RAITV_RECENTS_ID	"recent"
-#define RAITV_RECENTS_NAME	"Recent"
+#define RAITV_RECENTS_NAME	N_("Recent")
 
 #define RAITV_POPULARS_THEME_ID	"theme-popular"
 #define RAITV_RECENTS_THEME_ID	"theme-recent"
@@ -87,11 +88,9 @@ GRL_LOG_DOMAIN_STATIC(raitv_log_domain);
 
 /* --- Plugin information --- */
 
-#define PLUGIN_ID   RAITV_PLUGIN_ID
-
 #define SOURCE_ID   "grl-raitv"
 #define SOURCE_NAME "Rai.tv"
-#define SOURCE_DESC "A source for browsing and searching Rai.tv videos"
+#define SOURCE_DESC _("A source for browsing and searching Rai.tv videos")
 
 
 G_DEFINE_TYPE (GrlRaitvSource, grl_raitv_source, GRL_TYPE_SOURCE)
@@ -169,29 +168,29 @@ CategoryInfo root_dir[] = {
 };
 
 CategoryInfo themes_dir[] = {
-  {"all","All",-1,"","Tematica:News^Tematica:ntz"},
-  {"bianco_nero","Bianco e Nero",-1,"Tematica:Bianco e Nero",""},
-  {"cinema","Cinema",-1,"Tematica:Cinema",""},
-  {"comici","Comici",-1,"Tematica:Comici",""},
-  {"cronaca","Cronaca",-1,"Tematica:Cronaca",""},
-  {"cultura","Cultura",-1,"Tematica:Cultura",""},
-  {"economia","Economia",-1,"Tematica:Economia",""},
-  {"fiction","Fiction",-1,"Tematica:Fiction",""},
-  {"junior","Junior",-1,"Tematica:Junior",""},
-  {"inchieste","Inchieste",-1,"Tematica:Inchieste",""},
-  {"interviste","Interviste",-1,"Tematica:Interviste",""},
-  {"musica","Musica",-1,"Tematica:Musica",""},
-  {"news","News",-1,"Tematica:News",""},
-  {"salute","Salute",-1,"Tematica:Salute",""},
-  {"satira","Satira",-1,"Tematica:Satira",""},
-  {"scienza","Scienza",-1,"Tematica:Scienza",""},
-  {"societa","Societa",-1,"Tematica:Societa",""},
-  {"spettacolo","Spettacolo",-1,"Tematica:Spettacolo",""},
-  {"sport","Sport",-1,"Tematica:Sport",""},
-  {"storia","Storia",-1,"Tematica:Storia",""},
-  {"politica","Politica",-1,"Tematica:Politica",""},
-  {"tempo_libero","Tempo libero",-1,"Tematica:Tempo libero",""},
-  {"viaggi","Viaggi",-1,"Tematica:Viaggi",""},
+  {"all",N_("All"),-1,"","Tematica:News^Tematica:ntz"},
+  {"bianco_nero",N_("Black and White"),-1,"Tematica:Bianco e Nero",""},
+  {"cinema",N_("Cinema"),-1,"Tematica:Cinema",""},
+  {"comici",N_("Comedians"),-1,"Tematica:Comici",""},
+  {"cronaca",N_("Chronicle"),-1,"Tematica:Cronaca",""},
+  {"cultura",N_("Culture"),-1,"Tematica:Cultura",""},
+  {"economia",N_("Economy"),-1,"Tematica:Economia",""},
+  {"fiction",N_("Fiction"),-1,"Tematica:Fiction",""},
+  {"junior",N_("Junior"),-1,"Tematica:Junior",""},
+  {"inchieste",N_("Investigations"),-1,"Tematica:Inchieste",""},
+  {"interviste",N_("Interviews"),-1,"Tematica:Interviste",""},
+  {"musica",N_("Music"),-1,"Tematica:Musica",""},
+  {"news",N_("News"),-1,"Tematica:News",""},
+  {"salute",N_("Health"),-1,"Tematica:Salute",""},
+  {"satira",N_("Satire"),-1,"Tematica:Satira",""},
+  {"scienza","Science",-1,"Tematica:Scienza",""},
+  {"societa",N_("Society"),-1,"Tematica:Societa",""},
+  {"spettacolo",N_("Show"),-1,"Tematica:Spettacolo",""},
+  {"sport",N_("Sport"),-1,"Tematica:Sport",""},
+  {"storia",N_("History"),-1,"Tematica:Storia",""},
+  {"politica",N_("Politics"),-1,"Tematica:Politica",""},
+  {"tempo_libero",N_("Leisure"),-1,"Tematica:Tempo libero",""},
+  {"viaggi",N_("Travel"),-1,"Tematica:Viaggi",""},
   {NULL, NULL, 0}
 };
 
@@ -205,7 +204,6 @@ gboolean grl_raitv_plugin_init (GrlRegistry *registry,
                                 GList *configs);
 
 static const GList *grl_raitv_source_supported_keys (GrlSource *source);
-static const GList *grl_raitv_source_slow_keys (GrlSource *source);
 
 static void grl_raitv_source_browse (GrlSource *source,
                                      GrlSourceBrowseSpec *bs);
@@ -236,6 +234,10 @@ grl_raitv_plugin_init (GrlRegistry *registry,
 {
   GRL_LOG_DOMAIN_INIT (raitv_log_domain, "raitv");
 
+  /* Initialize i18n */
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+
   GrlRaitvSource *source = grl_raitv_source_new ();
   grl_registry_register_source (registry,
                                 plugin,
@@ -244,22 +246,48 @@ grl_raitv_plugin_init (GrlRegistry *registry,
   return TRUE;
 }
 
-GRL_PLUGIN_REGISTER (grl_raitv_plugin_init,
-                     NULL,
-                     PLUGIN_ID);
-
+GRL_PLUGIN_DEFINE (GRL_MAJOR,
+                   GRL_MINOR,
+                   RAITV_PLUGIN_ID,
+                   "Rai.tv",
+                   "A plugin for searching multimedia content using Rai.tv",
+                   "Marco Piazza",
+                   VERSION,
+                   "LGPL",
+                   "https://wiki.gnome.org/Projects/Grilo",
+                   grl_raitv_plugin_init,
+                   NULL,
+                   NULL);
 
 /* ================== Rai.tv GObject ================ */
 
 static GrlRaitvSource *
 grl_raitv_source_new (void)
 {
-  return g_object_new (GRL_TYPE_RAITV_SOURCE,
-                       "source-id", SOURCE_ID,
-                       "source-name", SOURCE_NAME,
-                       "source-desc", SOURCE_DESC,
-                       "supported-media", GRL_MEDIA_TYPE_VIDEO,
-                       NULL);
+  GIcon *icon;
+  GFile *file;
+  GrlRaitvSource *source;
+  const char *tags[] = {
+    "country:it",
+    "tv",
+    "net:internet",
+    NULL
+  };
+
+  file = g_file_new_for_uri ("resource:///org/gnome/grilo/plugins/raitv/channel-rai.svg");
+  icon = g_file_icon_new (file);
+  g_object_unref (file);
+  source = g_object_new (GRL_TYPE_RAITV_SOURCE,
+                         "source-id", SOURCE_ID,
+                         "source-name", SOURCE_NAME,
+                         "source-desc", SOURCE_DESC,
+                         "supported-media", GRL_SUPPORTED_MEDIA_VIDEO,
+                         "source-icon", icon,
+                         "source-tags", tags,
+                         NULL);
+  g_object_unref (icon);
+
+  return source;
 }
 
 static void
@@ -273,18 +301,15 @@ grl_raitv_source_finalize (GObject *object)
 {
   GrlRaitvSource *source = GRL_RAITV_SOURCE (object);
 
-  if (source->priv->wc != NULL) {
-    g_object_unref (source->priv->wc);
-    source->priv->wc = NULL;
-  }
+  g_clear_object (&source->priv->wc);
 
   if (source->priv->raitv_search_mappings != NULL) {
-    g_object_unref (source->priv->raitv_search_mappings);
+    g_list_free_full (source->priv->raitv_search_mappings, g_free);
     source->priv->raitv_search_mappings = NULL;
   }
 
   if (source->priv->raitv_browse_mappings != NULL) {
-    g_object_unref (source->priv->raitv_browse_mappings);
+    g_list_free_full (source->priv->raitv_browse_mappings, g_free);
     source->priv->raitv_browse_mappings = NULL;
   }
 
@@ -304,7 +329,6 @@ grl_raitv_source_class_init (GrlRaitvSourceClass *klass)
   object_class->finalize = grl_raitv_source_finalize;
 
   source_class->supported_keys = grl_raitv_source_supported_keys;
-  source_class->slow_keys = grl_raitv_source_slow_keys;
 
   source_class->cancel = grl_raitv_source_cancel;
   source_class->browse = grl_raitv_source_browse;
@@ -367,10 +391,8 @@ grl_raitv_source_init (GrlRaitvSource *self)
 static void
 raitv_operation_free (RaitvOperation *op)
 {
-  if (op->cancellable)
-    g_object_unref (op->cancellable);
-  if (op->source)
-    g_object_unref (op->source);
+  g_clear_object (&op->cancellable);
+  g_clear_object (&op->source);
   g_slice_free (RaitvOperation, op);
 }
 
@@ -387,7 +409,7 @@ proxy_call_search_grlnet_async_cb (GObject *source_object,
   xmlXPathContextPtr  xpath = NULL;
   xmlXPathObjectPtr   obj = NULL;
   gint i, nb_items = 0;
-  gint length;
+  gsize length;
 
   GRL_DEBUG ("Response id=%u", op->operation_id);
 
@@ -403,11 +425,11 @@ proxy_call_search_grlnet_async_cb (GObject *source_object,
   if (!grl_net_wc_request_finish (GRL_NET_WC (source_object),
                                   res,
                                   &content,
-                                  (gsize *) &length,
+                                  &length,
                                   &wc_error)) {
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_SEARCH_FAILED,
-                         "Failed to search Rait.tv: '%s'",
+                         _("Failed to search: %s"),
                          wc_error->message);
 
     op->callback (op->source,
@@ -423,7 +445,7 @@ proxy_call_search_grlnet_async_cb (GObject *source_object,
     return;
   }
 
-  doc = xmlParseMemory (content, length);
+  doc = xmlParseMemory (content, (gint) length);
 
   if (!doc) {
     GRL_DEBUG ("Doc failed");
@@ -545,11 +567,8 @@ proxy_call_search_grlnet_async_cb (GObject *source_object,
     }
 
  finalize:
-
-  if (xpath)
-    xmlXPathFreeContext (xpath);
-  if (doc)
-    xmlFreeDoc (doc);
+  g_clear_pointer (&xpath, xmlXPathFreeContext);
+  g_clear_pointer (&doc, xmlFreeDoc);
 
   /* Signal the last element if it was not already signaled */
   if (nb_items == 0 || g_bVideoNotFound) {
@@ -559,7 +578,6 @@ proxy_call_search_grlnet_async_cb (GObject *source_object,
                   0,
                   op->user_data,
                   NULL);
-    raitv_operation_free (op);
   }
   else {
     //Continue the search
@@ -583,7 +601,7 @@ proxy_call_browse_grlnet_async_cb (GObject *source_object,
   xmlXPathContextPtr  xpath = NULL;
   xmlXPathObjectPtr   obj = NULL;
   gint i, nb_items = 0;
-  gint length;
+  gsize length;
 
 
   GRL_DEBUG ("Response id=%u", op->operation_id);
@@ -600,11 +618,11 @@ proxy_call_browse_grlnet_async_cb (GObject *source_object,
   if (!grl_net_wc_request_finish (GRL_NET_WC (source_object),
                                   res,
                                   &content,
-                                  (gsize *) &length,
+                                  &length,
                                   &wc_error)) {
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_SEARCH_FAILED,
-                         "Failed to browse Rait.tv: '%s'",
+                         _("Failed to browse: %s"),
                          wc_error->message);
 
     op->callback (op->source,
@@ -620,7 +638,11 @@ proxy_call_browse_grlnet_async_cb (GObject *source_object,
     return;
   }
 
-  doc = xmlRecoverMemory (content, length);
+  /* Work-around leading linefeed */
+  if (*content == '\n')
+    doc = xmlRecoverMemory (content + 1, (gint) length - 1);
+  else
+    doc = xmlRecoverMemory (content, (gint) length);
 
   if (!doc) {
     GRL_DEBUG ("Doc failed");
@@ -754,12 +776,8 @@ proxy_call_browse_grlnet_async_cb (GObject *source_object,
     }
 
  finalize:
-  //g_free (body);
-
-  if (xpath)
-    xmlXPathFreeContext (xpath);
-  if (doc)
-    xmlFreeDoc (doc);
+  g_clear_pointer (&xpath, xmlXPathFreeContext);
+  g_clear_pointer (&doc, xmlFreeDoc);
 
   /* Signal the last element if it was not already signaled */
   if (nb_items == 0) {
@@ -769,7 +787,6 @@ proxy_call_browse_grlnet_async_cb (GObject *source_object,
                   0,
                   op->user_data,
                   NULL);
-    raitv_operation_free (op);
   }
   else {
     //Continue the search
@@ -838,7 +855,7 @@ proxy_call_resolve_grlnet_async_cb (GObject *source_object,
   GError             *wc_error = NULL;
   GError             *error = NULL;
   gchar              *content = NULL;
-  gint                length;
+  gsize               length;
   gchar              *value;
   gchar              *thumbnail;
   gchar             **tokens;
@@ -854,11 +871,11 @@ proxy_call_resolve_grlnet_async_cb (GObject *source_object,
   if (!grl_net_wc_request_finish (GRL_NET_WC (source_object),
                                   res,
                                   &content,
-                                  (gsize *) &length,
+                                  &length,
                                   &wc_error)) {
     error = g_error_new (GRL_CORE_ERROR,
                          GRL_CORE_ERROR_SEARCH_FAILED,
-                         "Failed to resolve Rait.tv: '%s'",
+                         _("Failed to resolve: %s"),
                          wc_error->message);
 
     op->resolveCb (op->source,
@@ -873,7 +890,7 @@ proxy_call_resolve_grlnet_async_cb (GObject *source_object,
     return;
   }
 
-  doc = xmlRecoverMemory (content, length);
+  doc = xmlRecoverMemory (content, (gint) length);
 
   if (!doc) {
     GRL_DEBUG ("Doc failed");
@@ -939,26 +956,23 @@ proxy_call_resolve_grlnet_async_cb (GObject *source_object,
                  op->user_data,
                  NULL);
 
-  if (xpath)
-    xmlXPathFreeContext (xpath);
-
-  if (doc)
-    xmlFreeDoc (doc);
+  g_clear_pointer (&xpath, xmlXPathFreeContext);
+  g_clear_pointer (&doc, xmlFreeDoc);
 }
 
 
 
-static gint
+static guint
 get_theme_index_from_id (const gchar *category_id)
 {
-  gint i;
+  guint i;
 
   for (i=0; i<root_dir[ROOT_DIR_POPULARS_INDEX].count; i++) {
     if (g_strrstr (category_id, themes_dir[i].id)) {
       return i;
     }
   }
-  return -1;
+  g_assert_not_reached ();
 }
 
 static gboolean
@@ -1002,7 +1016,7 @@ produce_container_from_directory (GrlMedia *media,
   gchar* mediaid=NULL;
 
   if (!media) {
-    content = grl_media_box_new ();
+    content = grl_media_container_new ();
   } else {
     content = media;
   }
@@ -1031,7 +1045,7 @@ produce_container_from_directory (GrlMedia *media,
     GRL_DEBUG ("MediaId=%s, Type:%d, Titolo:%s",mediaid, type, dir[index].name);
 
     grl_media_set_id (content, mediaid);
-    grl_media_set_title (content, dir[index].name);
+    grl_media_set_title (content, g_dgettext (GETTEXT_PACKAGE, dir[index].name));
     g_free(mediaid);
   }
 
@@ -1060,7 +1074,7 @@ produce_from_directory (CategoryInfo *dir, gint dir_size, RaitvOperation *os,
 
     do {
       GrlMedia *content =
-        produce_container_from_directory (NULL, dir, index,type );
+        produce_container_from_directory (NULL, dir, index, type);
 
       remaining--;
       index++;
@@ -1079,7 +1093,7 @@ produce_from_directory (CategoryInfo *dir, gint dir_size, RaitvOperation *os,
 static void
 produce_from_popular_theme (RaitvOperation *op)
 {
-  gint category_index;
+  guint category_index;
   gchar	*start = NULL;
   gchar	*url = NULL;
 
@@ -1107,7 +1121,7 @@ produce_from_popular_theme (RaitvOperation *op)
 static void
 produce_from_recent_theme (RaitvOperation *op)
 {
-  gint category_index;
+  guint category_index;
   gchar	*start = NULL;
   gchar	*url = NULL;
 
@@ -1149,18 +1163,6 @@ grl_raitv_source_supported_keys (GrlSource *source)
   return keys;
 }
 
-static const GList *
-grl_raitv_source_slow_keys (GrlSource *source)
-{
-  static GList *keys = NULL;
-  if (!keys) {
-    keys = grl_metadata_key_list_new (GRL_METADATA_KEY_URL,
-                                      NULL);
-  }
-  return keys;
-}
-
-
 static void
 grl_raitv_source_browse (GrlSource *source,
                          GrlSourceBrowseSpec *bs)
@@ -1182,7 +1184,7 @@ grl_raitv_source_browse (GrlSource *source,
   op->count	   = op->length;
   op->offset       = 0;
 
-  grl_operation_set_data (bs->operation_id, op);
+  grl_operation_set_data_full (bs->operation_id, op, (GDestroyNotify) raitv_operation_free);
 
   RaitvMediaType type = classify_media_id (container_id);
   switch (type)
@@ -1229,7 +1231,7 @@ grl_raitv_source_search (GrlSource *source,
   op->offset       = 0;
   op->text	   = ss->text;
 
-  grl_operation_set_data (ss->operation_id, op);
+  grl_operation_set_data_full (ss->operation_id, op, (GDestroyNotify) raitv_operation_free);
 
   g_raitv_videos_search(op);
 }
@@ -1269,7 +1271,7 @@ grl_raitv_source_resolve (GrlSource *source,
 
   GRL_DEBUG ("Starting resolve source: url=%s",grl_media_get_url (rs->media));
 
-  if (!GRL_IS_MEDIA_VIDEO (rs->media) && !GRL_IS_MEDIA_BOX (rs->media)) {
+  if (!grl_media_is_video (rs->media) && !grl_media_is_container (rs->media)) {
     rs->callback (rs->source, rs->operation_id, rs->media, rs->user_data, NULL);
     return;
   }
@@ -1301,7 +1303,7 @@ grl_raitv_source_resolve (GrlSource *source,
     op->user_data    = rs->user_data;
     op->media	      = rs->media;
 
-    grl_operation_set_data (rs->operation_id, op);
+    grl_operation_set_data_full (rs->operation_id, op, (GDestroyNotify) raitv_operation_free);
 
     urltarget = g_strdup_printf ("http://www.rai.tv/dl/RaiTV/programmi/media/%s.html",
                                  grl_media_get_id(rs->media));
@@ -1333,7 +1335,7 @@ grl_raitv_source_resolve (GrlSource *source,
   op->user_data    = rs->user_data;
   op->media	   = rs->media;
 
-  grl_operation_set_data (rs->operation_id, op);
+  grl_operation_set_data_full (rs->operation_id, op, (GDestroyNotify) raitv_operation_free);
 
   urltarget = g_strdup_printf("%s/%s.html","http://www.rai.tv/dl/RaiTV/programmi/media",grl_media_get_id(rs->media));
 
@@ -1354,11 +1356,12 @@ grl_raitv_source_cancel (GrlSource *source, guint operation_id)
 {
   RaitvOperation *op = grl_operation_get_data (operation_id);
 
-  GRL_WARNING ("Cancelling id=%u", operation_id);
+  GRL_DEBUG ("Cancelling id=%u", operation_id);
 
   if (!op)
     {
       GRL_WARNING ("\tNo such operation id=%u", operation_id);
+      return;
     }
 
   if (op->cancellable) {
