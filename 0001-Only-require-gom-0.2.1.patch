@@ -1,0 +1,26 @@
+From b25b69c267e724850bd7cfb3591c32256931f26c Mon Sep 17 00:00:00 2001
+From: Bastien Nocera <hadess@hadess.net>
+Date: Thu, 3 Sep 2015 16:01:59 +0200
+Subject: [PATCH] Only require gom 0.2.1
+
+It should be new enough to run grilo-plugins
+---
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index 5a027d7..952f806 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -156,7 +156,7 @@ PKG_CHECK_MODULES(AVAHI, [avahi-gobject avahi-glib avahi-client], HAVE_AVAHI=yes
+ 
+ PKG_CHECK_MODULES(MEDIAART, [libmediaart-2.0], HAVE_MEDIAART=yes, HAVE_MEDIAART=no)
+ 
+-PKG_CHECK_MODULES(GOM, [gom-1.0 >= 0.3.0], HAVE_GOM=yes, HAVE_GOM=no)
++PKG_CHECK_MODULES(GOM, [gom-1.0 >= 0.2.1], HAVE_GOM=yes, HAVE_GOM=no)
+ 
+ # Search available Tracker version
+ trackerpkg="tracker-sparql-0.10"
+-- 
+2.4.3
+

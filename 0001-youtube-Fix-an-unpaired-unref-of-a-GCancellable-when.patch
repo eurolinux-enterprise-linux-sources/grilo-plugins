@@ -1,0 +1,44 @@
+From 33be9dde605690e1a8292529a9e4e04fe59a8f0b Mon Sep 17 00:00:00 2001
+From: Philip Withnall <philip.withnall@collabora.co.uk>
+Date: Fri, 4 Sep 2015 14:43:31 +0100
+Subject: [PATCH] youtube: Fix an unpaired unref of a GCancellable when
+ searching
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The GCancellable stored in grl_operation_set_data() is unconditionally
+unreffed by release_operation_data(); but is also unconditionally
+unreffed elsewhere if it’s set as os->cancellable, so needs a second ref
+in the grl_operation_set_data() call to avoid a double-unref and crash.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=754244
+---
+ src/youtube/grl-youtube.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/youtube/grl-youtube.c b/src/youtube/grl-youtube.c
+index e14aa65..b28212e 100644
+--- a/src/youtube/grl-youtube.c
++++ b/src/youtube/grl-youtube.c
+@@ -1150,7 +1150,7 @@ produce_from_feed (OperationSpec *os)
+   operation_spec_ref (os);
+ 
+   os->cancellable = g_cancellable_new ();
+-  grl_operation_set_data (os->operation_id, os->cancellable);
++  grl_operation_set_data (os->operation_id, g_object_ref (os->cancellable));
+ 
+   service = GRL_YOUTUBE_SOURCE (os->source)->priv->service;
+ 
+@@ -1389,7 +1389,7 @@ grl_youtube_source_search (GrlSource *source,
+   /* Look for OPERATION_SPEC_REF_RATIONALE for details */
+   operation_spec_ref (os);
+ 
+-  grl_operation_set_data (ss->operation_id, os->cancellable);
++  grl_operation_set_data (ss->operation_id, g_object_ref (os->cancellable));
+ 
+   /* Index in GData starts at 1 */
+   query = gdata_query_new_with_limits (ss->text, os->skip + 1, os->count);
+-- 
+2.4.3
+

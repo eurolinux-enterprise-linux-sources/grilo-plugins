@@ -1,0 +1,149 @@
+/* config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* Apple Trailers plugin ID */
+#undef APPLE_TRAILERS_PLUGIN_ID
+
+/* Blip.tv plugin ID */
+#undef BLIPTV_PLUGIN_ID
+
+/* Bookmarks plugin ID */
+#undef BOOKMARKS_PLUGIN_ID
+
+/* dLeyna DLNA plugin ID */
+#undef DLEYNA_PLUGIN_ID
+
+/* DMAP plugin ID */
+#undef DMAP_PLUGIN_ID
+
+/* Filesystem plugin ID */
+#undef FILESYSTEM_PLUGIN_ID
+
+/* Flickr plugin ID */
+#undef FLICKR_PLUGIN_ID
+
+/* Freebox plugin ID */
+#undef FREEBOX_PLUGIN_ID
+
+/* The domain to use with gettext */
+#undef GETTEXT_PACKAGE
+
+/* Let plugins use goa */
+#undef GOA_ENABLED
+
+/* Gravatar plugin ID */
+#undef GRAVATAR_PLUGIN_ID
+
+/* Plugins directory */
+#undef GRL_PLUGINS_DIR
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Jamendo plugin ID */
+#undef JAMENDO_PLUGIN_ID
+
+/* Last.fm album art plugin ID */
+#undef LASTFM_ALBUMART_PLUGIN_ID
+
+/* Local metadata plugin ID */
+#undef LOCALMETADATA_PLUGIN_ID
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
+/* Lua Factory plugin ID */
+#undef LUA_FACTORY_PLUGIN_ID
+
+/* Magnatune plugin ID */
+#undef MAGNATUNE_PLUGIN_ID
+
+/* Metadata Store plugin ID */
+#undef METADATA_STORE_PLUGIN_ID
+
+/* OpenSubtitles plugin ID */
+#undef OPENSUBTITLES_PLUGIN_ID
+
+/* Optical Media plugin ID */
+#undef OPTICAL_MEDIA_PLUGIN_ID
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Pocket plugin ID */
+#undef POCKET_PLUGIN_ID
+
+/* Podcasts plugin ID */
+#undef PODCASTS_PLUGIN_ID
+
+/* Rai.tv plugin ID */
+#undef RAITV_PLUGIN_ID
+
+/* Shoutcast plugin ID */
+#undef SHOUTCAST_PLUGIN_ID
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* thetvdb plugin ID */
+#undef THETVDB_PLUGIN_ID
+
+/* TMDb plugin ID */
+#undef TMDB_PLUGIN_ID
+
+/* Tracker plugin ID */
+#undef TRACKER_PLUGIN_ID
+
+/* Version number of package */
+#undef VERSION
+
+/* Vimeo plugin ID */
+#undef VIMEO_PLUGIN_ID
+
+/* YouTube plugin ID */
+#undef YOUTUBE_PLUGIN_ID
