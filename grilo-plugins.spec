@@ -6,12 +6,17 @@
 
 Name:		grilo-plugins
 Version:	0.3.4
-Release:	1%{?dist}
+Release:	3%{?dist}
 Summary:	Plugins for the Grilo framework
 
 License:	LGPLv2+
 URL:		https://wiki.gnome.org/Projects/Grilo
 Source0:	https://download.gnome.org/sources/grilo-plugins/%{release_version}/grilo-plugins-%{version}.tar.xz
+
+# https://bugzilla.redhat.com/show_bug.cgi?id=1477129
+Patch0:		0001-lua-factory-Downgrade-requirement-to-lua-5.1.patch
+# https://bugzilla.gnome.org/show_bug.cgi?id=788557
+Patch1:		0002-lua-factory-Fix-warning-in-Apple-trailers-source.patch
 
 BuildRequires:	avahi-gobject-devel
 BuildRequires:	grilo-devel >= %{grilo_version}
@@ -26,9 +31,7 @@ BuildRequires:	itstool
 BuildRequires:	libarchive-devel
 BuildRequires:	libmediaart-devel
 BuildRequires:	libsoup-devel
-%if 0%{?fedora}
 BuildRequires:	lua-devel
-%endif
 BuildRequires:	rest-devel
 BuildRequires:	sqlite-devel
 BuildRequires:	libgdata-devel
@@ -39,6 +42,7 @@ BuildRequires:	gmime-devel
 %endif
 BuildRequires:	libdmapsharing-devel
 BuildRequires:	json-glib-devel
+BuildRequires:	libtool autoconf automake gnome-common
 
 Requires:	dleyna-server
 Requires:	gnome-online-accounts%{_isa} >= %{goa_version}
@@ -71,8 +75,12 @@ This package contains plugins to get information from theses sources:
 
 %prep
 %setup -q
+%patch0 -p1
+%patch1 -p1
 
 %build
+autoreconf -f
+
 %configure				\
 	--disable-static		\
 	--disable-shoutcast		\
@@ -84,9 +92,7 @@ This package contains plugins to get information from theses sources:
 	--enable-freebox		\
 	--enable-gravatar		\
 	--enable-jamendo		\
-%if 0%{?fedora}
 	--enable-lua-factory		\
-%endif
 	--enable-metadata-store		\
 %if 0%{?fedora}
 	--enable-podcasts		\
@@ -116,12 +122,19 @@ rm -f $RPM_BUILD_ROOT%{_bindir}/*
 %license COPYING
 %doc AUTHORS NEWS README
 %doc %{_datadir}/help/C/examples/example-tmdb.c
-%if 0%{?fedora}
 %{_datadir}/grilo-plugins/
-%endif
 %{_libdir}/grilo-%{release_version}/*.so*
 
 %changelog
+* Thu Oct 05 2017 Bastien Nocera <bnocera@redhat.com> - 0.3.4-3
+- Fix size reporting in Apple Trailers source
+- Add compatibility layer to allow building with lua 5.1
+Resolves: #1477129
+
+* Wed Oct 04 2017 Bastien Nocera <bnocera@redhat.com> - 0.3.4-2
+- Enable lua plugins
+Resolves: #1477129
+
 * Tue Feb 14 2017 Kalev Lember <klember@redhat.com> - 0.3.4-1
 - Update to 0.3.4
 - Resolves: #1386975
