@@ -9,26 +9,17 @@
 /* Bookmarks plugin ID */
 #undef BOOKMARKS_PLUGIN_ID
 
-/* dLeyna DLNA plugin ID */
-#undef DLEYNA_PLUGIN_ID
-
 /* DMAP plugin ID */
 #undef DMAP_PLUGIN_ID
+
+/* Fake metadata plugin ID */
+#undef FAKEMETADATA_PLUGIN_ID
 
 /* Filesystem plugin ID */
 #undef FILESYSTEM_PLUGIN_ID
 
 /* Flickr plugin ID */
 #undef FLICKR_PLUGIN_ID
-
-/* Freebox plugin ID */
-#undef FREEBOX_PLUGIN_ID
-
-/* The domain to use with gettext */
-#undef GETTEXT_PACKAGE
-
-/* Let plugins use goa */
-#undef GOA_ENABLED
 
 /* Gravatar plugin ID */
 #undef GRAVATAR_PLUGIN_ID
@@ -41,6 +32,9 @@
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* libgdata is 0.9.1 or higher */
+#undef HAVE_LIBGDATA_0_9
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
@@ -79,17 +73,11 @@
    */
 #undef LT_OBJDIR
 
-/* Lua Factory plugin ID */
-#undef LUA_FACTORY_PLUGIN_ID
-
-/* Magnatune plugin ID */
-#undef MAGNATUNE_PLUGIN_ID
-
 /* Metadata Store plugin ID */
 #undef METADATA_STORE_PLUGIN_ID
 
-/* OpenSubtitles plugin ID */
-#undef OPENSUBTITLES_PLUGIN_ID
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Optical Media plugin ID */
 #undef OPTICAL_MEDIA_PLUGIN_ID
@@ -115,9 +103,6 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
-/* Pocket plugin ID */
-#undef POCKET_PLUGIN_ID
-
 /* Podcasts plugin ID */
 #undef PODCASTS_PLUGIN_ID
 
@@ -130,14 +115,14 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
-/* thetvdb plugin ID */
-#undef THETVDB_PLUGIN_ID
-
 /* TMDb plugin ID */
 #undef TMDB_PLUGIN_ID
 
 /* Tracker plugin ID */
 #undef TRACKER_PLUGIN_ID
+
+/* UPnP plugin ID */
+#undef UPNP_PLUGIN_ID
 
 /* Version number of package */
 #undef VERSION

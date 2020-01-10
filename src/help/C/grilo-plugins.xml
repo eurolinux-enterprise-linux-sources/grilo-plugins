@@ -43,7 +43,7 @@
         under the terms of the GNU Free Documentation License, Version 1.2
         or any later version published by the Free Software Foundation;
         with no Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
-        You may obtain a copy of the GNU Free Documentation License from the Free Software Foundation by visiting their Web site or by writing to: Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301, USA.
+        You may obtain a copy of the GNU Free Documentation License from the Free Software Foundation by visiting their Web site or by writing to: Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
       </para>
     </legalnotice>
 
@@ -78,6 +78,12 @@
 <sect1 id="sec-plugin-dmap">
 <title>DMap</title>
 <para>This is a Grilo plugin for DMap. Its plugin ID is <literal>"grl-dmap"</literal></para>
+</sect1>
+
+<sect1 id="sec-plugin-fake-metadata">
+<title>Fake Metadata</title>
+<para>This is a Grilo plugin for fake metadata. Its plugin ID is <literal>"grl-fake-metadata"</literal></para>
+<para></para>
 </sect1>
 
 <sect1 id="sec-plugin-filesystem">
@@ -151,6 +157,11 @@
 <para>This is a Grilo plugin for Tracker. Its plugin ID is <literal>"grl-tracker"</literal></para>
 </sect1>
 
+<sect1 id="sec-plugin-upnp">
+<title>UPnP</title>
+<para>This is a Grilo plugin for UPnP. Its plugin ID is <literal>"grl-upnp"</literal></para>
+</sect1>
+
 <sect1 id="sec-plugin-vimeo">
 <title>Vimeo</title>
 <para>This is a Grilo plugin for Vimeo. Its plugin ID is <literal>"grl-vimeo"</literal></para>
@@ -159,11 +170,6 @@
 <sect1 id="sec-plugin-youtube">
 <title>YouTube</title>
 <para>This is a Grilo plugin for YouTube. Its plugin ID is <literal>"grl-youtube"</literal></para>
-</sect1>
-
-<sect1 id="sec-plugin-dleyna">
-<title>DLeyna</title>
-<para>This is a Grilo plugin for UPnP/DLNA. Its plugin ID is <literal>"grl-dleyna"</literal></para>
 </sect1>
 
 </chapter>

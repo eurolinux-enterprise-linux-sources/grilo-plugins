@@ -42,7 +42,9 @@ grl_tracker_op_terminate (GrlTrackerOp *os)
   if (os == NULL)
     return;
 
-  g_clear_object (&os->cursor);
+  if (os->cursor)
+    g_object_unref (os->cursor);
+
   g_object_unref (os->cancel);
   g_free (os->request);
 

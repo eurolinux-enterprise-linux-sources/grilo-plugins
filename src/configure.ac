@@ -6,15 +6,15 @@
 # Copyright (C) 2010, 2011 Igalia S.L.. All rights reserved.
 
 m4_define([prj_name],    [grilo-plugins])
-m4_define([prj_version], [0.2.14])
+m4_define([prj_version], [0.2.6])
 
 AC_INIT([prj_name],
         [prj_version],
         [http://bugzilla.gnome.org/enter_bug.cgi?product=grilo;component=plugins],
         [prj_name],
-        [https://wiki.gnome.org/Projects/Grilo])
+        [http://live.gnome.org/Grilo])
 
-AM_INIT_AUTOMAKE([foreign subdir-objects dist-xz no-dist-gzip])
+AM_INIT_AUTOMAKE([foreign])
 
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([src])
@@ -68,7 +68,6 @@ fi
 
 GRL_NAME=grilo-${GRL_VERSION}
 GRLNET_NAME=grilo-net-${GRL_VERSION}
-GRLPLS_NAME=grilo-pls-${GRL_VERSION}
 
 # ----------------------------------------------------------
 # DEBUG SUPPORT
@@ -87,13 +86,10 @@ fi
 # HARD DEPENDENCIES
 # ----------------------------------------------------------
 
-PKG_CHECK_MODULES([DEPS], glib-2.0 >= 2.36      \
+PKG_CHECK_MODULES([DEPS], glib-2.0 >= 2.28      \
 			  gobject-2.0   \
 			  gmodule-2.0   \
-			  ${GRL_NAME} >= 0.2.12)
-
-GLIB_COMPILE_RESOURCES=`$PKG_CONFIG --variable glib_compile_resources gio-2.0`
-AC_SUBST(GLIB_COMPILE_RESOURCES)
+			  ${GRL_NAME} >= 0.2.3)
 
 # ----------------------------------------------------------
 # DEFINITIONS
@@ -112,43 +108,30 @@ AC_DEFINE_UNQUOTED(GRL_PLUGINS_DIR, "$GRL_PLUGINS_DIR", [Plugins directory])
 PKG_CHECK_MODULES([GRLNET], [${GRLNET_NAME} >= 0.2.2],
 			    HAVE_GRLNET=yes,
 			    HAVE_GRLNET=no)
-PKG_CHECK_MODULES([GRLPLS], [${GRLPLS_NAME} >= 0.2.0],
-			    HAVE_GRLPLS=yes,
-			    HAVE_GRLPLS=no)
 
 PKG_CHECK_MODULES(XML, libxml-2.0, HAVE_XML=yes, HAVE_XML=no)
 
 PKG_CHECK_MODULES(GIO, gio-2.0, HAVE_GIO=yes, HAVE_GIO=no)
 
-PKG_CHECK_MODULES(GIO_UNIX, gio-unix-2.0, HAVE_GIO_UNIX=yes, HAVE_GIO_UNIX=no)
+PKG_CHECK_MODULES(GSSDP, gssdp-1.0, HAVE_GSSDP=yes, HAVE_GSSDP=no)
+
+PKG_CHECK_MODULES(GUPNP, gupnp-1.0 >= 0.13, HAVE_GUPNP=yes, HAVE_GUPNP=no)
+
+PKG_CHECK_MODULES(GUPNPAV, gupnp-av-1.0 >= 0.5, HAVE_GUPNPAV=yes, HAVE_GUPNPAV=no)
 
 PKG_CHECK_MODULES(DMAP, libdmapsharing-3.0 >= 2.9.12, HAVE_DMAP=yes, HAVE_DMAP=no)
 
 PKG_CHECK_MODULES(SQLITE, sqlite3, HAVE_SQLITE=yes, HAVE_SQLITE=no)
 
-PKG_CHECK_MODULES(GDATA, libgdata >= 0.9.1, HAVE_GDATA=yes, HAVE_GDATA=no)
+PKG_CHECK_MODULES(GDATA, libgdata >= 0.7.0, HAVE_GDATA=yes, HAVE_GDATA=no)
+
+PKG_CHECK_MODULES(QUVI, libquvi >= 0.4.0, HAVE_QUVI=yes, HAVE_QUVI=no)
 
 PKG_CHECK_MODULES(LIBSOUP, libsoup-2.4, HAVE_LIBSOUP=yes, HAVE_LIBSOUP=no)
 
-PKG_CHECK_MODULES(LUA, lua >= 5.2.0,
-                       HAVE_LUA=yes,
-                       [PKG_CHECK_MODULES(LUA, lua5.2 >= 5.2.0,
-                                               HAVE_LUA=yes,
-                                               HAVE_LUA=no)])
-
-PKG_CHECK_MODULES(ARCHIVE, libarchive, HAVE_ARCHIVE=yes, HAVE_ARCHIVE=no)
-
 PKG_CHECK_MODULES(GTHREAD, gthread-2.0, HAVE_GTHREAD=yes, HAVE_GTHREAD=no)
 
-PKG_CHECK_MODULES(OAUTH, oauth, HAVE_OAUTH=yes, HAVE_OAUTH=no)
-
-PKG_CHECK_MODULES(GOA, [goa-1.0 >= 3.7.1], HAVE_GOA=yes, HAVE_GOA=no)
-
-PKG_CHECK_MODULES(GOA_WITH_POCKET, [goa-1.0 >= 3.11.4], HAVE_GOA_WITH_POCKET=yes, HAVE_GOA_WITH_POCKET=no)
-
 PKG_CHECK_MODULES(TOTEM_PL_PARSER, totem-plparser >= 3.4.1, HAVE_TOTEM_PL_PARSER=yes, HAVE_TOTEM_PL_PARSER=no)
-
-PKG_CHECK_MODULES(REST, [rest-0.7 >= 0.7.90], HAVE_REST=yes, HAVE_REST=no)
 
 PKG_CHECK_MODULES([JSON], [json-glib-1.0], HAVE_JSON_GLIB=yes, HAVE_JSON_GLIB=no)
 
@@ -157,16 +140,9 @@ PKG_CHECK_MODULES(GMIME, gmime-2.6,
                          [PKG_CHECK_MODULES(GMIME, gmime-2.4,
                                                    HAVE_GMIME=yes,
                                                    HAVE_GMIME=no)])
-
-PKG_CHECK_MODULES(AVAHI, [avahi-gobject avahi-glib avahi-client], HAVE_AVAHI=yes, HAVE_AVAHI=no)
-
-PKG_CHECK_MODULES(MEDIAART, [libmediaart-2.0], HAVE_MEDIAART=yes, HAVE_MEDIAART=no)
-
-PKG_CHECK_MODULES(GOM, [gom-1.0 >= 0.3.0], HAVE_GOM=yes, HAVE_GOM=no)
-
 # Search available Tracker version
 trackerpkg="tracker-sparql-0.10"
-m4_foreach([VERSION], [[0.10], [0.11], [0.12], [0.14], [0.15], [0.16], [0.17], [0.18], [1.0]],
+m4_foreach([VERSION], [[0.10], [0.11], [0.12], [0.14], [0.15], [0.16]],
                       [PKG_CHECK_EXISTS([tracker-sparql-VERSION >= 0.10.5],
                                         [ trackerpkg="tracker-sparql-VERSION" ])
                       ])
@@ -175,60 +151,43 @@ PKG_CHECK_MODULES([TRACKER_SPARQL], [ ${trackerpkg} ],
                                     HAVE_TRACKER_SPARQL=yes,
                                     HAVE_TRACKER_SPARQL=no)
 
-GDBUS_CODEGEN=`${PKG_CONFIG} --variable=gdbus_codegen gio-2.0`
-AC_SUBST(GDBUS_CODEGEN)
+
+AM_PATH_LIBGCRYPT(,HAVE_GCRYPT=yes, HAVE_GCRYPT=no)
 
 # ----------------------------------------------------------
-# CHECK GOA
-# ----------------------------------------------------------
-AC_ARG_ENABLE(goa,
-        AC_HELP_STRING([--enable-goa],
-                [enable Gnome Online Accounts support (default: auto)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_GOA" = "xno"; then
-                           AC_MSG_ERROR([goa-1.0 >= 3.7.1 not found, install it or use --disable-goa])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-                if test "x$HAVE_GOA" = "xyes"; then
-                   enable_goa=yes
-                else
-                   enable_goa=no
-                fi
-        ])
-
-if test "x$enable_goa" = "xyes"; then
-        AC_DEFINE(GOA_ENABLED, 1, [Let plugins use goa])
-fi
-
-# ----------------------------------------------------------
-# TESTS COVERAGE
+# GDATA VERSION
 # ----------------------------------------------------------
 
-AC_ARG_ENABLE(gcov,
-        AC_HELP_STRING([--enable-gcov],
-                [enable coverage testing (default: no)]),
-        [enable_gcov=$enableval],
-        [enable_gcov=no])
-
-if test "x$enable_gcov" = "xyes"; then
-   AC_PATH_PROG([enable_gcov], [lcov], [no])
-   if test "x$enable_gcov" = "xno"; then
-      AC_MSG_ERROR([You need lcov to build with coverage testing])
-   elif test "x$GCC" = "xno"; then
-      AC_MSG_ERROR([You need to use gcc to build with coverage testing])
-   else
-      enable_gcov=yes
-      CFLAGS="$CFLAGS -g -O0 -fprofile-arcs -ftest-coverage"
-      LDFLAGS="$LDFLAGS -lgcov"
+if test "x$HAVE_GDATA" = "xyes"; then
+   if `$PKG_CONFIG --atleast-version=0.9.1 libgdata`; then
+      AC_DEFINE(HAVE_LIBGDATA_0_9, 1, [libgdata is 0.9.1 or higher])
    fi
 fi
 
-AM_CONDITIONAL([GCOV_ENABLED], [test "x$enable_gcov" = "xyes"])
+# ----------------------------------------------------------
+# BUILD FAKE METADATA PLUGIN
+# ----------------------------------------------------------
+
+AC_ARG_ENABLE(fakemetadata,
+        AC_HELP_STRING([--enable-fakemetadata],
+                [enable Fake Metadata plugin (default: no)]),,
+        [enable_fakemetadata=no])
+
+AM_CONDITIONAL([FAKEMETADATA_PLUGIN], [test "x$enable_fakemetadata" = "xyes"])
+GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL fakemetadata"
+if test "x$enable_fakemetadata" = "xyes"
+then
+	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED fakemetadata"
+fi
+
+FAKEMETADATA_PLUGIN_ID="grl-fake-metadata"
+AC_SUBST(FAKEMETADATA_PLUGIN_ID)
+AC_DEFINE_UNQUOTED([FAKEMETADATA_PLUGIN_ID], ["$FAKEMETADATA_PLUGIN_ID"], [Fake metadata plugin ID])
+
+DEPS_FAKEMETADATA_CFLAGS="$DEPS_CFLAGS"
+AC_SUBST(DEPS_FAKEMETADATA_CFLAGS)
+DEPS_FAKEMETADATA_LIBS="$DEPS_LIBS"
+AC_SUBST(DEPS_FAKEMETADATA_LIBS)
 
 # ----------------------------------------------------------
 # BUILD FILE SYSTEM PLUGIN
@@ -236,23 +195,8 @@ AM_CONDITIONAL([GCOV_ENABLED], [test "x$enable_gcov" = "xyes"])
 
 AC_ARG_ENABLE(filesystem,
         AC_HELP_STRING([--enable-filesystem],
-                [enable File System plugin (default: yes)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_GRLPLS" = "xno"; then
-                           AC_MSG_ERROR([grilo-pls not found, install it or use --disable-filesystem])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-                if test "x$HAVE_GRLPLS" = "xyes"; then
-                   enable_filesystem=yes
-                else
-                   enable_filesystem=no
-                fi
-        ])
+                [enable File System plugin (default: yes)]),,
+        [enable_filesystem=yes])
 
 AM_CONDITIONAL([FILESYSTEM_PLUGIN], [test "x$enable_filesystem" = "xyes"])
 GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL filesystem"
@@ -265,9 +209,9 @@ FILESYSTEM_PLUGIN_ID="grl-filesystem"
 AC_SUBST(FILESYSTEM_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([FILESYSTEM_PLUGIN_ID], ["$FILESYSTEM_PLUGIN_ID"], [Filesystem plugin ID])
 
-DEPS_FILESYSTEM_CFLAGS="$DEPS_CFLAGS $GRLPLS_CFLAGS $GIO_CFLAGS"
+DEPS_FILESYSTEM_CFLAGS="$DEPS_CFLAGS $GIO_CFLAGS"
 AC_SUBST(DEPS_FILESYSTEM_CFLAGS)
-DEPS_FILESYSTEM_LIBS="$DEPS_LIBS $GRLPLS_LIBS $GIO_LIBS"
+DEPS_FILESYSTEM_LIBS="$DEPS_LIBS $GIO_LIBS"
 AC_SUBST(DEPS_FILESYSTEM_LIBS)
 
 # ----------------------------------------------------------
@@ -281,7 +225,7 @@ AC_ARG_ENABLE(optical-media,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_TOTEM_PL_PARSER" = "xno"; then
-                           AC_MSG_ERROR([totem-plparser >= 3.4.1 not found, install it or use --disable-optical-media])
+                           AC_MSG_ERROR([totem-pl-parser not found, install it or use --disable-optical-media])
                         fi
                         ;;
                 esac
@@ -305,10 +249,10 @@ OPTICAL_MEDIA_PLUGIN_ID="grl-optical-media"
 AC_SUBST(OPTICAL_MEDIA_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([OPTICAL_MEDIA_PLUGIN_ID], ["$OPTICAL_MEDIA_PLUGIN_ID"], [Optical Media plugin ID])
 
-DEPS_OPTICAL_MEDIA_CFLAGS="$DEPS_CFLAGS $GIO_CFLAGS $GTK_CFLAGS $TOTEM_PL_PARSER_CFLAGS"
-AC_SUBST(DEPS_OPTICAL_MEDIA_CFLAGS)
-DEPS_OPTICAL_MEDIA_LIBS="$DEPS_LIBS $GIO_LIBS $GTK_LIBS $TOTEM_PL_PARSER_LIBS"
-AC_SUBST(DEPS_OPTICAL_MEDIA_LIBS)
+DEPS_OPTICAL_MEDIA_STORE_CFLAGS="$DEPS_CFLAGS $GIO_CFLAGS $GTK_CFLAGS $TOTEM_PL_PARSER_CFLAGS"
+AC_SUBST(DEPS_OPTICAL_MEDIA_STORE_CFLAGS)
+DEPS_OPTICAL_MEDIA_STORE_LIBS="$DEPS_LIBS $GIO_LIBS $GTK_LIBS $TOTEM_PL_PARSER_LIBS"
+AC_SUBST(DEPS_OPTICAL_MEDIA_STORE_LIBS)
 
 # ----------------------------------------------------------
 # BUILD JAMENDO PLUGIN
@@ -321,10 +265,10 @@ AC_ARG_ENABLE(jamendo,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-jamendo])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-jamendo])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-jamendo])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-jamendo])
                         fi
                         ;;
                 esac
@@ -364,10 +308,10 @@ AC_ARG_ENABLE(lastfm_albumart,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-lastfm-albumart])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-lastfm-albumart])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-lastfm-albumart])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-lastfm-albumart])
                         fi
                         ;;
                 esac
@@ -397,6 +341,54 @@ DEPS_LASTFM_ALBUMART_LIBS="$DEPS_LIBS $GRLNET_LIBS $XML_LIBS"
 AC_SUBST(DEPS_LASTFM_ALBUMART_LIBS)
 
 # ----------------------------------------------------------
+# BUILD UPNP PLUGIN
+# ----------------------------------------------------------
+
+AC_ARG_ENABLE(upnp,
+        AC_HELP_STRING([--enable-upnp],
+                [enable uPnP plugin (default: auto)]),
+        [
+                case "$enableval" in
+                     yes)
+                        if test "x$HAVE_GSSDP" = "xno"; then
+                           AC_MSG_ERROR([gssdp not found, install it or use --disable-upnp])
+                        fi
+                        if test "x$HAVE_GUPNP" = "xno"; then
+                           AC_MSG_ERROR([gupnp not found, install it or use --disable-upnp])
+                        fi
+                        if test "x$HAVE_GUPNPAV" = "xno"; then
+                           AC_MSG_ERROR([gupnp-av not found, install it or use --disable-upnp])
+                        fi
+                        if test "$xHAVE_XML" = "xno"; then
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-upnp])
+                        fi
+                esac
+        ],
+        [
+                if test "x$HAVE_GSSDP" = "xyes" -a "x$HAVE_GUPNP" = "xyes" -a "x$HAVE_GUPNPAV" = "xyes" -a "x$HAVE_XML" = "xyes"; then
+                        enable_upnp=yes
+                else
+                        enable_upnp=no
+                fi
+        ])
+
+AM_CONDITIONAL([UPNP_PLUGIN], [test "x$enable_upnp" = "xyes"])
+GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL upnp"
+if test "x$enable_upnp" = "xyes"
+then
+	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED upnp"
+fi
+
+UPNP_PLUGIN_ID="grl-upnp"
+AC_SUBST(UPNP_PLUGIN_ID)
+AC_DEFINE_UNQUOTED([UPNP_PLUGIN_ID], ["$UPNP_PLUGIN_ID"], [UPnP plugin ID])
+
+DEPS_UPNP_CFLAGS="$DEPS_CFLAGS $GSSDP_CFLAGS $GUPNP_CFLAGS $GUPNPAV_CFLAGS $GTHREAD_CFLAGS $XML_CFLAGS"
+AC_SUBST(DEPS_UPNP_CFLAGS)
+DEPS_UPNP_LIBS="$DEPS_LIBS $GSSDP_LIBS $GUPNP_LIBS $GUPNPAV_LIBS $GTHREAD_LIBS $XML_LIBS"
+AC_SUBST(DEPS_UPNP_LIBS)
+
+# ----------------------------------------------------------
 # BUILD YOUTUBE PLUGIN
 # ----------------------------------------------------------
 
@@ -407,22 +399,22 @@ AC_ARG_ENABLE(youtube,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2  not found, install it or use --disable-youtube])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-youtube])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-youtube])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-youtube])
                         fi
                         if test "x$HAVE_GDATA" = "xno"; then
-                           AC_MSG_ERROR([libgdata >= 0.9.1 not found, install it or use --disable-youtube])
+                           AC_MSG_ERROR([libgdata not found, install it or use --disable-youtube])
                         fi
-                        if test "x$HAVE_TOTEM_PL_PARSER" = "xno"; then
-                           AC_MSG_ERROR([totem-plparser >= 3.4.1 not found, install it or use --disable-youtube])
+                        if test "x$HAVE_QUVI" = "xno"; then
+                           AC_MSG_ERROR([libquvi not found, install it or use --disable-youtube])
                         fi
                         ;;
                 esac
         ],
         [
-                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_GDATA" = "xyes" -a "x$HAVE_TOTEM_PL_PARSER" = "xyes"; then
+                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_GDATA" = "xyes" -a "x$HAVE_QUVI" = "xyes"; then
                    enable_youtube=yes
                 else
                    enable_youtube=no
@@ -440,9 +432,9 @@ YOUTUBE_PLUGIN_ID="grl-youtube"
 AC_SUBST(YOUTUBE_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([YOUTUBE_PLUGIN_ID], ["$YOUTUBE_PLUGIN_ID"], [YouTube plugin ID])
 
-DEPS_YOUTUBE_CFLAGS="$DEPS_CFLAGS $GRLNET_CFLAGS $XML_CFLAGS $GTHREAD_CFLAGS $GDATA_CFLAGS $TOTEM_PL_PARSER_CFLAGS"
+DEPS_YOUTUBE_CFLAGS="$DEPS_CFLAGS $GRLNET_CFLAGS $XML_CFLAGS $GTHREAD_CFLAGS $GDATA_CFLAGS $QUVI_CFLAGS"
 AC_SUBST(DEPS_YOUTUBE_CFLAGS)
-DEPS_YOUTUBE_LIBS="$DEPS_LIBS $GRLNET_LIBS $XML_LIBS $GTHREAD_LIBS $GDATA_LIBS $TOTEM_PL_PARSER_LIBS"
+DEPS_YOUTUBE_LIBS="$DEPS_LIBS $GRLNET_LIBS $XML_LIBS $GTHREAD_LIBS $GDATA_LIBS $QUVI_LIBS"
 AC_SUBST(DEPS_YOUTUBE_LIBS)
 
 # ----------------------------------------------------------
@@ -456,19 +448,16 @@ AC_ARG_ENABLE(flickr,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-flickr])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-flickr])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-flickr])
-                        fi
-                        if test "x$HAVE_OAUTH" = "xno"; then
-                           AC_MSG_ERROR([oauth not found, install it or use --disable-flickr])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-flickr])
                         fi
                         ;;
                 esac
         ],
         [
-                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_OAUTH" = "xyes"; then
+                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes"; then
                    enable_flickr=yes
                 else
                    enable_flickr=no
@@ -486,68 +475,10 @@ FLICKR_PLUGIN_ID="grl-flickr"
 AC_SUBST(FLICKR_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([FLICKR_PLUGIN_ID], ["$FLICKR_PLUGIN_ID"], [Flickr plugin ID])
 
-DEPS_FLICKR_CFLAGS="$DEPS_CFLAGS $XML_CFLAGS $GRLNET_CFLAGS $OAUTH_CFLAGS"
-if test "x$enable_goa" = "xyes"; then
-	DEPS_FLICKR_CFLAGS="$DEPS_FLICKR_CFLAGS $GOA_CFLAGS"
-fi
+DEPS_FLICKR_CFLAGS="$DEPS_CFLAGS $XML_CFLAGS $GRLNET_CFLAGS"
 AC_SUBST(DEPS_FLICKR_CFLAGS)
-
-
-DEPS_FLICKR_LIBS="$DEPS_LIBS $XML_LIBS $GRLNET_LIBS $OAUTH_LIBS"
-if test "x$enable_goa" = "xyes"; then
-	DEPS_FLICKR_LIBS="$DEPS_FLICKR_LIBS $GOA_LIBS"
-fi
+DEPS_FLICKR_LIBS="$DEPS_LIBS $XML_LIBS $GRLNET_LIBS"
 AC_SUBST(DEPS_FLICKR_LIBS)
-
-# ----------------------------------------------------------
-# BUILD POCKET PLUGIN
-# ----------------------------------------------------------
-
-AC_ARG_ENABLE(pocket,
-        AC_HELP_STRING([--enable-pocket],
-                [enable Pocket plugin (default: auto)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_JSON_GLIB" = "xno"; then
-                           AC_MSG_ERROR([json-glib not found, install it or use --disable-pocket])
-                        fi
-                        if test "x$HAVE_GOA_WITH_POCKET" = "xno"; then
-                           AC_MSG_ERROR([goa-1.0 >= 3.11.4 not found, install it or use --disable-pocket])
-                        fi
-                        if test "x$HAVE_REST" = "xno"; then
-                           AC_MSG_ERROR([rest >= 0.7.90 not found, install it or use --disable-pocket])
-                        fi
-                        if test "x$HAVE_TOTEM_PL_PARSER" = "xno"; then
-                           AC_MSG_ERROR([totem-pl-parser not found, install it or use --disable-pocket])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-                if test "x$HAVE_JSON_GLIB" = "xyes" -a "x$HAVE_GOA_WITH_POCKET" = "xyes" -a "x$HAVE_REST" = "xyes" -a "x$HAVE_TOTEM_PL_PARSER" = "xyes"; then
-                   enable_pocket=yes
-                else
-                   enable_pocket=no
-                fi
-        ])
-
-AM_CONDITIONAL([POCKET_PLUGIN], [test "x$enable_pocket" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL pocket"
-if test "x$enable_pocket" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED pocket"
-fi
-
-POCKET_PLUGIN_ID="grl-pocket"
-AC_SUBST(POCKET_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([POCKET_PLUGIN_ID], ["$POCKET_PLUGIN_ID"], [Pocket plugin ID])
-
-DEPS_POCKET_CFLAGS="$DEPS_CFLAGS $JSON_CFLAGS $GOA_WITH_POCKET_CFLAGS $REST_CFLAGS $TOTEM_PL_PARSER_CFLAGS"
-AC_SUBST(DEPS_POCKET_CFLAGS)
-
-DEPS_POCKET_LIBS="$DEPS_LIBS $JSON_LIBS $GOA_WITH_POCKET_LIBS $REST_LIBS $TOTEM_PL_PARSER_LIBS"
-AC_SUBST(DEPS_POCKET_LIBS)
 
 # ----------------------------------------------------------
 # BUILD PODCASTS PLUGIN
@@ -560,16 +491,16 @@ AC_ARG_ENABLE(podcasts,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-podcasts])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-podcasts])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-podcasts])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-podcasts])
                         fi
                         if test "x$HAVE_SQLITE" = "xno"; then
                            AC_MSG_ERROR([sqlite3 not found, install it or use --disable-podcasts])
                         fi
                         if test "x$HAVE_GMIME" = "xno"; then
-                           AC_MSG_ERROR([gmime-2.4 or gmime-2.6 not found, install it or use --disable-podcasts])
+                           AC_MSG_ERROR([gmime not found, install it or use --disable-podcasts])
                         fi
                         ;;
                 esac
@@ -612,19 +543,19 @@ AC_ARG_ENABLE(bookmarks,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GIO" = "xno"; then
-                           AC_MSG_ERROR([gio-2.0 not found, install it or use --disable-bookmarks])
+                           AC_MSG_ERROR([GIO not found, install it or use --disable-bookmarks])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-bookmarks])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-bookmarks])
                         fi
-                        if test "x$HAVE_GOM" = "xno"; then
-                           AC_MSG_ERROR([gom-1.0 not found, install it or use --disable-bookmarks])
+                        if test "x$HAVE_SQLITE" = "xno"; then
+                           AC_MSG_ERROR([sqlite3 not found, install it or use --disable-bookmarks])
                         fi
                         ;;
                 esac
         ],
         [
-                if test "x$HAVE_GIO" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_GOM" = "xyes"; then
+                if test "x$HAVE_GIO" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_SQLITE" = "xyes"; then
                    enable_bookmarks=yes
                 else
                    enable_bookmarks=no
@@ -642,9 +573,9 @@ BOOKMARKS_PLUGIN_ID="grl-bookmarks"
 AC_SUBST(BOOKMARKS_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([BOOKMARKS_PLUGIN_ID], ["$BOOKMARKS_PLUGIN_ID"], [Bookmarks plugin ID])
 
-DEPS_BOOKMARKS_CFLAGS="$DEPS_CFLAGS $GOM_CFLAGS"
+DEPS_BOOKMARKS_CFLAGS="$DEPS_CFLAGS $SQLITE_CFLAGS"
 AC_SUBST(DEPS_BOOKMARKS_CFLAGS)
-DEPS_BOOKMARKS_LIBS="$DEPS_LIBS $GOM_LIBS"
+DEPS_BOOKMARKS_LIBS="$DEPS_LIBS $SQLITE_LIBS"
 AC_SUBST(DEPS_BOOKMARKS_LIBS)
 
 # ----------------------------------------------------------
@@ -658,10 +589,10 @@ AC_ARG_ENABLE(shoutcast,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-shoutcast])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-shoutcast])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-shoutcast])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-shoutcast])
                         fi
                         ;;
                 esac
@@ -701,10 +632,10 @@ AC_ARG_ENABLE(apple_trailers,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-apple-trailers])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-apple-trailers])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-apple-trailers])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-apple-trailers])
                         fi
                         ;;
                 esac
@@ -732,101 +663,6 @@ DEPS_APPLE_TRAILERS_CFLAGS="$DEPS_CFLAGS $GRLNET_CFLAGS $XML_CFLAGS"
 AC_SUBST(DEPS_APPLE_TRAILERS_CFLAGS)
 DEPS_APPLE_TRAILERS_LIBS="$DEPS_LIBS $GRLNET_LIBS $XML_LIBS"
 AC_SUBST(DEPS_APPLE_TRAILERS_LIBS)
-
-# ----------------------------------------------------------
-# BUILD MAGNATUNE PLUGIN
-# ----------------------------------------------------------
-
-AC_ARG_ENABLE(magnatune,
-        AC_HELP_STRING([--enable-magnatune],
-                [enable Magnatune plugin (default: auto)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_SQLITE" = "xno"; then
-                           AC_MSG_ERROR([sqlite3 not found, install it or use --disable-magnatune])
-                        fi
-                        if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-magnatune])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-                if test "x$HAVE_SQLITE" = "xyes" -a "x$HAVE_GRLNET" = "xyes"; then
-                  enable_magnatune=yes
-                else
-                  enable_magnatune=no
-                fi
-        ])
-
-AM_CONDITIONAL([MAGNATUNE_PLUGIN], [test "x$enable_magnatune" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL magnatune"
-if test "x$enable_magnatune" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED magnatune"
-fi
-
-MAGNATUNE_PLUGIN_ID="grl-magnatune"
-AC_SUBST(MAGNATUNE_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([MAGNATUNE_PLUGIN_ID], ["$MAGNATUNE_PLUGIN_ID"], [Magnatune plugin ID])
-
-DEPS_MAGNATUNE_CFLAGS="$DEPS_CFLAGS $GRLNET_CFLAGS $SQLITE_CFLAGS"
-AC_SUBST(DEPS_MAGNATUNE_CFLAGS)
-DEPS_MAGNATUNE_LIBS="$DEPS_LIBS $GRLNET_LIBS $SQLITE_LIBS"
-AC_SUBST(DEPS_MAGNATUNE_LIBS)
-
-# ----------------------------------------------------------
-# BUILD LUA FACTORY PLUGIN
-# ----------------------------------------------------------
-
-AC_ARG_ENABLE(lua_factory,
-        AC_HELP_STRING([--enable-lua-factory],
-                [enable Lua plugins (default: auto)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_LUA" = "xno"; then
-                           AC_MSG_ERROR([lua not found, install it or use --disable-lua-factory])
-                        fi
-                        if test "x$HAVE_ARCHIVE" = "xno"; then
-                           AC_MSG_ERROR([libarchive not found, install it or use --disable-lua-factory])
-                        fi
-                        if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-lua-factory])
-                        fi
-                        if test "x$HAVE_JSON_GLIB" = "xno"; then
-                           AC_MSG_ERROR([json-glib-1.0 not found, install it or use --disable-lua-factory])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-                if test "x$HAVE_LUA" = "xyes" -a "x$HAVE_ARCHIVE" = "xyes" -a "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_JSON_GLIB" = "xyes"; then
-                  enable_lua_factory=yes
-                else
-                  enable_lua_factory=no
-                fi
-        ])
-
-AM_CONDITIONAL([LUA_FACTORY_PLUGIN], [test "x$enable_lua_factory" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL lua_factory"
-if test "x$enable_lua_factory" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED lua_factory"
-fi
-
-LUA_FACTORY_PLUGIN_ID="grl-lua-factory"
-AC_SUBST(LUA_FACTORY_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([LUA_FACTORY_PLUGIN_ID], ["$LUA_FACTORY_PLUGIN_ID"], [Lua Factory plugin ID])
-
-DEPS_LUA_FACTORY_CFLAGS="$DEPS_CFLAGS $LUA_CFLAGS $ARCHIVE_CFLAGS $GRLNET_CFLAGS $JSON_CFLAGS"
-AC_SUBST(DEPS_LUA_FACTORY_CFLAGS)
-DEPS_LUA_FACTORY_LIBS="$DEPS_LIBS $LUA_LIBS $ARCHIVE_LIBS $GRLNET_LIBS $JSON_LIBS"
-AC_SUBST(DEPS_LUA_FACTORY_LIBS)
-
-LUA_FACTORY_SOURCE_LOCATION="grilo-plugins/${LUA_FACTORY_PLUGIN_ID}"
-AC_SUBST(LUA_FACTORY_SOURCE_LOCATION)
 
 # ----------------------------------------------------------
 # BUILD METADATA-STORE PLUGIN
@@ -879,19 +715,22 @@ AC_ARG_ENABLE(vimeo,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-vimeo])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-vimeo])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-vimeo])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-vimeo])
                         fi
-                        if test "x$HAVE_TOTEM_PL_PARSER" = "xno"; then
-                           AC_MSG_ERROR([totem-plparser >= 3.4.1 not found, install it or use --disable-vimeo])
+			               if test "x$HAVE_GCRYPT" = "xno"; then
+                           AC_MSG_ERROR([libgcrypt not found, install it or use --disable-vimeo])
+                        fi
+                        if test "x$HAVE_QUVI" = "xno"; then
+                           AC_MSG_ERROR([libquvi not found, install it or use --disable-vimeo])
                         fi
                         ;;
                 esac
         ],
         [
-                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_TOTEM_PL_PARSER" = "xyes"; then
+                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_GCRYPT" = "xyes" -a "x$HAVE_QUVI" = "xyes"; then
                    enable_vimeo=yes
                 else
                    enable_vimeo=no
@@ -909,9 +748,9 @@ VIMEO_PLUGIN_ID="grl-vimeo"
 AC_SUBST(VIMEO_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([VIMEO_PLUGIN_ID], ["$VIMEO_PLUGIN_ID"], [Vimeo plugin ID])
 
-DEPS_VIMEO_CFLAGS="$DEPS_CFLAGS $GRLNET_CFLAGS $XML_CFLAGS $TOTEM_PL_PARSER_CFLAGS"
+DEPS_VIMEO_CFLAGS="$DEPS_CFLAGS $GRLNET_CFLAGS $XML_CFLAGS $LIBGCRYPT_CFLAGS $QUVI_CFLAGS"
 AC_SUBST(DEPS_VIMEO_CFLAGS)
-DEPS_VIMEO_LIBS="$DEPS_LIBS $GRLNET_LIBS $XML_LIBS $TOTEM_PL_PARSER_LIBS"
+DEPS_VIMEO_LIBS="$DEPS_LIBS $GRLNET_LIBS $XML_LIBS $LIBGCRYPT_LIBS $QUVI_LIBS"
 AC_SUBST(DEPS_VIMEO_LIBS)
 
 # ----------------------------------------------------------
@@ -994,10 +833,10 @@ AC_ARG_ENABLE(bliptv,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-bliptv])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-bliptv])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-bliptv])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-bliptv])
                         fi
                         ;;
                 esac
@@ -1037,10 +876,10 @@ AC_ARG_ENABLE(raitv,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-raitv])
+                           AC_MSG_ERROR([grilo-net not found, install it or use --disable-raitv])
                         fi
                         if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-raitv])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-raitv])
                         fi
                         ;;
                 esac
@@ -1082,14 +921,11 @@ AC_ARG_ENABLE(localmetadata,
                         if test "x$HAVE_GIO" = "xno"; then
                            AC_MSG_ERROR([gio-2.0 not found, install it or use --disable-localmetadata])
                         fi
-                        if test "x$HAVE_MEDIAART" = "xno"; then
-                           AC_MSG_ERROR([libmediaart not found, install it or use --disable-localmetadata])
-                        fi
                         ;;
                 esac
         ],
         [
-                if test "x$HAVE_GIO" = "xyes" -a "x$HAVE_MEDIAART" = "xyes"; then
+                if test "x$HAVE_GIO" = "xyes"; then
                    enable_localmetadata=yes
                 else
                    enable_localmetadata=no
@@ -1107,67 +943,10 @@ LOCALMETADATA_PLUGIN_ID="grl-local-metadata"
 AC_SUBST(LOCALMETADATA_PLUGIN_ID)
 AC_DEFINE_UNQUOTED([LOCALMETADATA_PLUGIN_ID], ["$LOCALMETADATA_PLUGIN_ID"], [Local metadata plugin ID])
 
-DEPS_LOCALMETADATA_CFLAGS="$DEPS_CFLAGS $GIO_CFLAGS $MEDIAART_CFLAGS"
+DEPS_LOCALMETADATA_CFLAGS="$DEPS_CFLAGS $GIO_CFLAGS"
 AC_SUBST(DEPS_LOCALMETADATA_CFLAGS)
-DEPS_LOCALMETADATA_LIBS="$DEPS_LIBS $GIO_LIBS $MEDIAART_LIBS"
+DEPS_LOCALMETADATA_LIBS="$DEPS_LIBS $GIO_LIBS"
 AC_SUBST(DEPS_LOCALMETADATA_LIBS)
-
-# ----------------------------------------------------------
-# BUILD DLEYNA PLUGIN
-# ----------------------------------------------------------
-
-AC_ARG_ENABLE(dleyna,
-        AC_HELP_STRING([--enable-dleyna],
-                [enable DLNA plugin using the dLeyna DBus services (default: yes)]),
-                [
-                  case "$enableval" in
-                     yes)
-                        if test "x$HAVE_GIO" = "xno"; then
-                           AC_MSG_ERROR([GIO not found, install it or use --disable-dleyna])
-                        fi
-                        if test "x$HAVE_GIO_UNIX" = "xno"; then
-                           AC_MSG_ERROR([GIO Unix Extensions not found, install it or use --disable-dleyna])
-                        fi
-                        if test "$xHAVE_LIBSOUP" = "xno"; then
-                           AC_MSG_ERROR([libsoup-2.4 not found, install it or use --disable-dleyna])
-                        fi
-                        ;;
-                  esac
-
-                ],
-                [
-                  if test "x$HAVE_GIO" = "xyes" -a "x$HAVE_GIO_UNIX" = "xyes" -a "x$HAVE_LIBSOUP" = "xyes"; then
-                     enable_dleyna=yes
-                  else
-                     enable_dleyna=no
-                  fi
-                ])
-
-AM_CONDITIONAL([DLEYNA_PLUGIN], [test "x$enable_dleyna" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL dleyna"
-if test "x$enable_dleyna" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED dleyna"
-
-        AX_PYTHON_MODULE([dbusmock])
-        AS_IF([test "$HAVE_PYMOD_DBUSMOCK" = "yes"],,
-              AC_MSG_WARN([[
-***
-*** No python-dbusmock module detected, tests for the dLeyna plugin will be disabled.
-***]]))
-fi
-
-AM_CONDITIONAL([DLEYNA_TESTS_RUN_DBUSMOCK],[test "$HAVE_PYMOD_DBUSMOCK" = "yes"])
-
-DLEYNA_PLUGIN_ID="grl-dleyna"
-AC_SUBST(DLEYNA_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([DLEYNA_PLUGIN_ID], ["$DLEYNA_PLUGIN_ID"], [dLeyna DLNA plugin ID])
-
-DEPS_DLEYNA_CFLAGS="$DEPS_CFLAGS $GIO_UNIX_CFLAGS $LIBSOUP_CFLAGS"
-AC_SUBST(DEPS_DLEYNA_CFLAGS)
-DEPS_DLEYNA_LIBS="$DEPS_LIBS $GIO_UNIX_LIBS $LIBSOUP_LIBS"
-AC_SUBST(DEPS_DLEYNA_LIBS)
-
 
 # ----------------------------------------------------------
 # BUILD DMAP PLUGIN
@@ -1180,10 +959,10 @@ AC_ARG_ENABLE(dmap,
                 case "$enableval" in
                      yes)
                         if test "x$HAVE_DMAP" = "xno"; then
-                           AC_MSG_ERROR([libdmapsharing-3.0 >= 2.9.12 not found, install it or use --disable-dmap])
+                           AC_MSG_ERROR([DMAP not found, install it or use --disable-dmap])
                         fi
                         if test "$xHAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-dmap])
+                           AC_MSG_ERROR([xml2 not found, install it or use --disable-dmap])
                         fi
                 esac
         ],
@@ -1212,55 +991,6 @@ DEPS_DMAP_LIBS="$DEPS_LIBS $DMAP_LIBS $XML_LIBS"
 AC_SUBST(DEPS_DMAP_LIBS)
 
 # ----------------------------------------------------------
-# BUILD THETVDB PLUGIN
-# ----------------------------------------------------------
-
-AC_ARG_ENABLE(thetvdb,
-        AC_HELP_STRING([--enable-thetvdb],
-                [enable thetvdb plugin (default: auto)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_GRLNET" = "xno"; then
-                           AC_MSG_ERROR([grilo-net-0.2 >= 0.2.2 not found, install it or use --disable-thetvdb])
-                        fi
-                        if test "x$HAVE_XML" = "xno"; then
-                           AC_MSG_ERROR([libxml-2.0 not found, install it or use --disable-thetvdb])
-                        fi
-                        if test "x$HAVE_ARCHIVE" = "xno"; then
-                           AC_MSG_ERROR([libarchive not found, install it or use --disable-thetvdb])
-                        fi
-                        if test "x$HAVE_GOM" = "xno"; then
-                           AC_MSG_ERROR([gom-1.0 not found, install it or use --disable-thetvdb])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-                if test "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_XML" = "xyes" -a "x$HAVE_ARCHIVE" = "xyes" -a "x$HAVE_GOM" = "xyes"; then
-                  enable_thetvdb=yes
-                else
-                  enable_thetvdb=no
-                fi
-        ])
-
-AM_CONDITIONAL([THETVDB_PLUGIN], [test "x$enable_thetvdb" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL thetvdb"
-if test "x$enable_thetvdb" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED thetvdb"
-fi
-
-THETVDB_PLUGIN_ID="grl-thetvdb"
-AC_SUBST(THETVDB_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([THETVDB_PLUGIN_ID], ["$THETVDB_PLUGIN_ID"], [thetvdb plugin ID])
-
-DEPS_THETVDB_CFLAGS="$DEPS_CFLAGS $ARCHIVE_CFLAGS $GRLNET_CFLAGS $XML_CFLAGS $GOM_CFLAGS"
-AC_SUBST(DEPS_THETVDB_CFLAGS)
-DEPS_THETVDB_LIBS="$DEPS_LIBS $ARCHIVE_LIBS $GRLNET_LIBS $XML_LIBS $GOM_LIBS"
-AC_SUBST(DEPS_THETVDB_LIBS)
-
-# ----------------------------------------------------------
 # BUILD TMDB PLUGIN
 # ----------------------------------------------------------
 
@@ -1269,12 +999,12 @@ AC_ARG_ENABLE([tmdb],
                        [enable TMDb metadata plugin (default: auto)]),
         [
          AS_IF([test "x$enableval" = "xyes"],
-               [AS_IF([test "x$HAVE_JSON_GLIB" = "xno" -o "x$HAVE_GRLNET" = "xno" -o "x$HAVE_LIBSOUP" = "xno"],
-                      [AC_MSG_ERROR([json-glib-1.0, ${GRLNET_NAME} or libsoup not found, install it or use --disable-tmdb])
+               [AS_IF([test "x$HAVE_JSON_GLIB" = "xno"],
+                      [AC_MSG_ERROR([json-glib-1.0 not found, install it or use --disable-tmdb])
                       ])
                ])],
         [
-         AS_IF([test "x$HAVE_JSON_GLIB" = "xyes" -a "x$HAVE_GRLNET" = "xyes" -a "x$HAVE_LIBSOUP" = "xyes"],
+         AS_IF([test "x$HAVE_JSON_GLIB" = "xyes"],
                [enable_tmdb=yes],
                [enable_tmdb=no])
         ]
@@ -1295,100 +1025,12 @@ DEPS_TMDB_LIBS="$DEPS_LIBS $LIBSOUP_LIBS $GRLNET_LIBS $JSON_LIBS"
 AC_SUBST(DEPS_TMDB_LIBS)
 
 # ----------------------------------------------------------
-# BUILD FREEBOX PLUGIN
+# GETTEXT
 # ----------------------------------------------------------
 
-AC_ARG_ENABLE(freebox,
-        AC_HELP_STRING([--enable-freebox],
-                [enable Freebox plugin (default: auto)]),
-        [
-                case "$enableval" in
-                     yes)
-                        if test "x$HAVE_GRLPLS" = "xno"; then
-                           AC_MSG_ERROR([grilo-pls-0.2 >= 0.2.0 not found, install it or use --disable-freebox])
-                        fi
-                        if test "x$HAVE_AVAHI" = "xno"; then
-                           AC_MSG_ERROR([avahi not found, install it or use --disable-freebox])
-                        fi
-                        ;;
-                esac
-        ],
-        [
-               if test "x$HAVE_GRLPLS" = "xyes" -a "x$HAVE_AVAHI" = "xyes"; then
-                  enable_freebox=yes
-               else
-                  enable_freebox=no
-               fi
-        ])
-
-AM_CONDITIONAL([FREEBOX_PLUGIN], [test "x$enable_freebox" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL freebox"
-if test "x$enable_freebox" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED freebox"
-fi
-
-FREEBOX_PLUGIN_ID="grl-freebox"
-AC_SUBST(FREEBOX_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([FREEBOX_PLUGIN_ID], ["$FREEBOX_PLUGIN_ID"], [Freebox plugin ID])
-
-DEPS_FREEBOX_CFLAGS="$DEPS_CFLAGS $GRLPLS_CFLAGS $AVAHI_CFLAGS"
-AC_SUBST(DEPS_FREEBOX_CFLAGS)
-DEPS_FREEBOX_LIBS="$DEPS_LIBS $GRLPLS_LIBS $AVAHI_LIBS"
-AC_SUBST(DEPS_FREEBOX_LIBS)
-
-# ----------------------------------------------------------
-# BUILD OPENSUBTITLES PLUGIN
-# ----------------------------------------------------------
-
-AC_ARG_ENABLE(opensubtitles,
-        AC_HELP_STRING([--enable-opensubtitles],
-                [enable DLNA plugin using the OpenSubtitles DBus services (default: yes)]),
-                [
-                  case "$enableval" in
-                     yes)
-                        if test "x$HAVE_GIO" = "xno"; then
-                           AC_MSG_ERROR([GIO not found, install it or use --disable-opensubtitles])
-                        fi
-                        if test "$xHAVE_LIBSOUP" = "xno"; then
-                           AC_MSG_ERROR([libsoup-2.4 not found, install it or use --disable-opensubtitles])
-                        fi
-                        ;;
-                  esac
-
-                ],
-                [
-                  if test "x$HAVE_GIO" = "xyes" -a "x$HAVE_LIBSOUP" = "xyes"; then
-                     enable_opensubtitles=yes
-                  else
-                     enable_opensubtitles=no
-                  fi
-                ])
-
-AM_CONDITIONAL([OPENSUBTITLES_PLUGIN], [test "x$enable_opensubtitles" = "xyes"])
-GRL_PLUGINS_ALL="$GRL_PLUGINS_ALL opensubtitles"
-if test "x$enable_opensubtitles" = "xyes"
-then
-	GRL_PLUGINS_ENABLED="$GRL_PLUGINS_ENABLED opensubtitles"
-fi
-
-OPENSUBTITLES_PLUGIN_ID="grl-opensubtitles"
-AC_SUBST(OPENSUBTITLES_PLUGIN_ID)
-AC_DEFINE_UNQUOTED([OPENSUBTITLES_PLUGIN_ID], ["$OPENSUBTITLES_PLUGIN_ID"], [OpenSubtitles plugin ID])
-
-DEPS_OPENSUBTITLES_CFLAGS="$DEPS_CFLAGS $GIO_CFLAGS $LIBSOUP_CFLAGS"
-AC_SUBST(DEPS_OPENSUBTITLES_CFLAGS)
-DEPS_OPENSUBTITLES_LIBS="$DEPS_LIBS $GIO_LIBS $LIBSOUP_LIBS"
-AC_SUBST(DEPS_OPENSUBTITLES_LIBS)
-
-# ----------------------------------------------------------
-# GETTEXT/INTLTOOL
-# ----------------------------------------------------------
-
-IT_PROG_INTLTOOL([0.40.0])
-GETTEXT_PACKAGE=grilo-plugins
-AC_SUBST(GETTEXT_PACKAGE)
-AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE,"$GETTEXT_PACKAGE", [The domain to use with gettext])
+#GETTEXT_PACKAGE=grilo
+#AC_SUBST(GETTEXT_PACKAGE)
+#AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE,"$GETTEXT_PACKAGE", [Gettext package])
 
 #AM_GLIB_GNU_GETTEXT
 
@@ -1399,11 +1041,8 @@ AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE,"$GETTEXT_PACKAGE", [The domain to use with g
 AC_SUBST([abs_top_builddir])
 AC_SUBST([builddir])
 
-# ----------------------------------------------------------
-# DOCUMENTATION
-# ----------------------------------------------------------
-
-YELP_HELP_INIT
+GNOME_DOC_INIT([0.9.0],,
+  [AC_MSG_WARN([[gnome-doc-utils not found: tutorial will not be built.]])])
 
 # ----------------------------------------------------------
 # OUTPUT
@@ -1413,46 +1052,29 @@ AC_CONFIG_FILES([
   Makefile
   help/Makefile
   help/examples/Makefile
-  po/Makefile.in
-  po/Makefile
   src/Makefile
   src/apple-trailers/Makefile
   src/bliptv/Makefile
   src/bookmarks/Makefile
-  src/dleyna/Makefile
   src/dmap/Makefile
+  src/fake-metadata/Makefile
   src/filesystem/Makefile
   src/flickr/Makefile
-  src/freebox/Makefile
   src/gravatar/Makefile
   src/jamendo/Makefile
   src/lastfm-albumart/Makefile
   src/local-metadata/Makefile
-  src/lua-factory/Makefile
-  src/lua-factory/sources/Makefile
-  src/magnatune/Makefile
-  src/thetvdb/Makefile
   src/metadata-store/Makefile
-  src/opensubtitles/Makefile
   src/optical-media/Makefile
-  src/pocket/Makefile
   src/podcasts/Makefile
   src/raitv/Makefile
   src/shoutcast/Makefile
   src/tmdb/Makefile
   src/tracker/Makefile
+  src/upnp/Makefile
   src/vimeo/Makefile
   src/youtube/Makefile
-  tests/Makefile
-  tests/apple-trailers/Makefile
-  tests/bliptv/Makefile
-  tests/dleyna/Makefile
-  tests/dleyna/dbusmock/dleyna-server-mock.service
-  tests/lastfm-albumart/Makefile
-  tests/local-metadata/Makefile
-  tests/thetvdb/Makefile
-  tests/tmdb/Makefile
-  tests/vimeo/Makefile
+  test/Makefile
 ])
 
 AC_OUTPUT

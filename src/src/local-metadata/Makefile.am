@@ -5,15 +5,10 @@
 #
 # Copyright (C) 2010-2011 Igalia S.L. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES		 = libgrllocalmetadata.la
 
 libgrllocalmetadata_la_CFLAGS =	\
-	$(DEPS_LOCALMETADATA_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlLocalMetadata\" \
-	-DLOCALEDIR=\"$(localedir)\"
-
+	$(DEPS_LOCALMETADATA_CFLAGS)
 
 libgrllocalmetadata_la_LIBADD =	\
 	$(DEPS_LOCALMETADATA_LIBS)
@@ -37,7 +32,7 @@ copy-xml-to-libs-dir: libgrllocalmetadata.la
 
 all-local: copy-xml-to-libs-dir
 
-EXTRA_DIST += $(localmetadataxml_DATA)
+EXTRA_DIST = $(localmetadataxml_DATA)
 
 MAINTAINERCLEANFILES	 = \
 	*.in \

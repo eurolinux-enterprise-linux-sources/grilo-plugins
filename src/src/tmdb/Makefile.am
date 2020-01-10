@@ -5,14 +5,9 @@
 #
 # Copyright (C) 2012 Openismus GmbH.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES		 = libgrltmdb.la
 
-libgrltmdb_la_CFLAGS =	\
-	$(DEPS_TMDB_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlTmdb\" \
-	-DLOCALEDIR=\"$(localedir)\"
+libgrltmdb_la_CFLAGS = $(DEPS_TMDB_CFLAGS)
 
 libgrltmdb_la_LIBADD = $(DEPS_TMDB_LIBS)
 
@@ -37,7 +32,7 @@ copy-xml-to-libs-dir: libgrltmdb.la
 
 all-local: copy-xml-to-libs-dir
 
-EXTRA_DIST += $(tmdbxml_DATA)
+EXTRA_DIST = $(tmdbxml_DATA)
 
 MAINTAINERCLEANFILES	 = \
 	*.in \

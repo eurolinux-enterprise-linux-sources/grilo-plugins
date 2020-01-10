@@ -5,14 +5,10 @@
 #
 # Copyright (C) 2010, 2011 Igalia S.L. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES = libgrlgravatar.la
 
 libgrlgravatar_la_CFLAGS =	\
-	$(DEPS_GRAVATAR_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlGravatar\" \
-	-DLOCALEDIR=\"$(localedir)\"
+	$(DEPS_GRAVATAR_CFLAGS)
 
 libgrlgravatar_la_LIBADD =	\
 	$(DEPS_GRAVATAR_LIBS)
@@ -28,7 +24,7 @@ extdir				= $(GRL_PLUGINS_DIR)
 gravatarxmldir		= $(GRL_PLUGINS_DIR)
 gravatarxml_DATA	= $(GRAVATAR_PLUGIN_ID).xml
 
-EXTRA_DIST += $(gravatarxml_DATA)
+EXTRA_DIST = $(gravatarxml_DATA)
 
 MAINTAINERCLEANFILES =	\
 	*.in	\

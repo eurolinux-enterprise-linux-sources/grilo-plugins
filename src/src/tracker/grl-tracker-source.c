@@ -111,8 +111,7 @@ grl_tracker_source_class_init (GrlTrackerSourceClass * klass)
   source_class->notify_change_start = grl_tracker_source_change_start;
   source_class->notify_change_stop  = grl_tracker_source_change_stop;
   source_class->get_caps            = grl_tracker_source_get_caps;
-  source_class->test_media_from_uri = grl_tracker_source_test_media_from_uri;
-  source_class->media_from_uri      = grl_tracker_source_get_media_from_uri;
+
 
   g_object_class_install_property (g_class,
                                    PROP_TRACKER_CONNECTION,
@@ -153,8 +152,8 @@ grl_tracker_source_finalize (GObject *object)
   GrlTrackerSource *self;
 
   self = GRL_TRACKER_SOURCE (object);
-
-  g_clear_object (&self->priv->tracker_connection);
+  if (self->priv->tracker_connection)
+    g_object_unref (self->priv->tracker_connection);
 
   G_OBJECT_CLASS (grl_tracker_source_parent_class)->finalize (object);
 }
@@ -170,12 +169,14 @@ grl_tracker_source_set_property (GObject      *object,
 
   switch (propid) {
     case PROP_TRACKER_CONNECTION:
-      g_clear_object (&priv->tracker_connection);
+      if (priv->tracker_connection != NULL)
+        g_object_unref (G_OBJECT (priv->tracker_connection));
       priv->tracker_connection = g_object_ref (g_value_get_object (value));
       break;
 
     case PROP_TRACKER_DATASOURCE:
-      g_clear_pointer (&priv->tracker_datasource, g_free);
+      if (priv->tracker_datasource != NULL)
+        g_free (priv->tracker_datasource);
       priv->tracker_datasource = g_strdup (g_value_get_string (value));
       break;
 

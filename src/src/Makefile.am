@@ -6,8 +6,6 @@
 #
 # Copyright (C) 2010-2012 Igalia S.L. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 SUBDIRS =
 
 if APPLE_TRAILERS_PLUGIN
@@ -22,12 +20,12 @@ if BOOKMARKS_PLUGIN
 SUBDIRS += bookmarks
 endif
 
-if DLEYNA_PLUGIN
-SUBDIRS += dleyna
-endif
-
 if DMAP_PLUGIN
 SUBDIRS += dmap
+endif
+
+if FAKEMETADATA_PLUGIN
+SUBDIRS += fake-metadata
 endif
 
 if FILESYSTEM_PLUGIN
@@ -54,24 +52,12 @@ if LOCALMETADATA_PLUGIN
 SUBDIRS += local-metadata
 endif
 
-if LUA_FACTORY_PLUGIN
-SUBDIRS += lua-factory
-endif
-
-if MAGNATUNE_PLUGIN
-SUBDIRS += magnatune 
-endif
-
 if METADATA_STORE_PLUGIN
 SUBDIRS += metadata-store
 endif
 
 if OPTICAL_MEDIA_PLUGIN
 SUBDIRS += optical-media
-endif
-
-if POCKET_PLUGIN
-SUBDIRS += pocket
 endif
 
 if PODCASTS_PLUGIN
@@ -86,16 +72,16 @@ if SHOUTCAST_PLUGIN
 SUBDIRS += shoutcast
 endif
 
-if THETVDB_PLUGIN
-SUBDIRS += thetvdb
-endif
-
 if TMDB_PLUGIN
 SUBDIRS += tmdb
 endif
 
 if TRACKER_PLUGIN
 SUBDIRS += tracker
+endif
+
+if UPNP_PLUGIN
+SUBDIRS += upnp
 endif
 
 if VIMEO_PLUGIN
@@ -106,18 +92,11 @@ if YOUTUBE_PLUGIN
 SUBDIRS += youtube
 endif
 
-if FREEBOX_PLUGIN
-SUBDIRS += freebox
-endif
-
-if OPENSUBTITLES_PLUGIN
-SUBDIRS += opensubtitles
-endif
-
 DIST_SUBDIRS = \
-   apple-trailers bliptv bookmarks dleyna dmap filesystem flickr freebox gravatar jamendo \
-   lastfm-albumart local-metadata lua-factory magnatune metadata-store opensubtitles \
-   optical-media pocket podcasts raitv shoutcast thetvdb tmdb tracker vimeo youtube
+	apple-trailers bliptv bookmarks dmap fake-metadata filesystem flickr	\
+	gravatar jamendo lastfm-albumart local-metadata metadata-store			\
+	optical-media podcasts raitv shoutcast tmdb tracker upnp vimeo			\
+	youtube
 
 MAINTAINERCLEANFILES =	\
         *.in		\

@@ -1,20 +1,20 @@
-From 7389cb8f4527ee4a7fbf08d3fac5e6b825f63f42 Mon Sep 17 00:00:00 2001
+From c70383b78f6c29117fa47468244bb474fff0b96e Mon Sep 17 00:00:00 2001
 From: Bastien Nocera <hadess@hadess.net>
 Date: Thu, 22 Nov 2012 08:54:45 +0100
 Subject: [PATCH] Use copy/paste instead of gmime
 
 ---
- configure.ac                |   6 -
+ configure.ac                |   7 +-
  src/podcasts/gmime-utils.c  | 604 ++++++++++++++++++++++++++++++++++++++++++++
  src/podcasts/grl-podcasts.c |  12 +-
- 3 files changed, 615 insertions(+), 7 deletions(-)
+ 3 files changed, 617 insertions(+), 6 deletions(-)
  create mode 100644 src/podcasts/gmime-utils.c
 
 diff --git a/configure.ac b/configure.ac
-index 14c6d7d..5a027d7 100644
+index f8f3bfa..cea21f1 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -152,12 +152,6 @@ PKG_CHECK_MODULES(REST, [rest-0.7 >= 0.7.90], HAVE_REST=yes, HAVE_REST=no)
+@@ -135,11 +135,8 @@ PKG_CHECK_MODULES(TOTEM_PL_PARSER, totem-plparser >= 3.4.1, HAVE_TOTEM_PL_PARSER
  
  PKG_CHECK_MODULES([JSON], [json-glib-1.0], HAVE_JSON_GLIB=yes, HAVE_JSON_GLIB=no)
  
@@ -23,10 +23,11 @@ index 14c6d7d..5a027d7 100644
 -                         [PKG_CHECK_MODULES(GMIME, gmime-2.4,
 -                                                   HAVE_GMIME=yes,
 -                                                   HAVE_GMIME=no)])
--
- PKG_CHECK_MODULES(AVAHI, [avahi-gobject avahi-glib avahi-client], HAVE_AVAHI=yes, HAVE_AVAHI=no)
- 
- PKG_CHECK_MODULES(MEDIAART, [libmediaart-2.0], HAVE_MEDIAART=yes, HAVE_MEDIAART=no)
++HAVE_GMIME=yes
++
+ # Search available Tracker version
+ trackerpkg="tracker-sparql-0.10"
+ m4_foreach([VERSION], [[0.10], [0.11], [0.12], [0.14], [0.15], [0.16]],
 diff --git a/src/podcasts/gmime-utils.c b/src/podcasts/gmime-utils.c
 new file mode 100644
 index 0000000..0b03008
@@ -638,7 +639,7 @@ index 0000000..0b03008
 +	return date;
 +}
 diff --git a/src/podcasts/grl-podcasts.c b/src/podcasts/grl-podcasts.c
-index 4251c22..60bd4dd 100644
+index 191ae8e..d0124cc 100644
 --- a/src/podcasts/grl-podcasts.c
 +++ b/src/podcasts/grl-podcasts.c
 @@ -24,6 +24,17 @@
@@ -658,8 +659,8 @@ index 4251c22..60bd4dd 100644
 +
  #include <glib.h>
  #include <glib/gstdio.h>
- #include <glib/gi18n-lib.h>
-@@ -32,7 +43,6 @@
+ #include <grilo.h>
+@@ -31,7 +42,6 @@
  #include <libxml/xpath.h>
  #include <sqlite3.h>
  #include <string.h>
@@ -668,5 +669,5 @@ index 4251c22..60bd4dd 100644
  #include "grl-podcasts.h"
  
 -- 
-2.4.0
+1.8.2.1
 

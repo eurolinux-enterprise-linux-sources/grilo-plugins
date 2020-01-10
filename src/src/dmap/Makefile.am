@@ -5,14 +5,10 @@
 #
 # Copyright (C) 2011 W. Michael Petullo. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES	= libgrldmap.la
 
 libgrldmap_la_CFLAGS =	\
-	$(DEPS_DMAP_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlDmap\" \
-	-DLOCALEDIR=\"$(localedir)\"
+	$(DEPS_DMAP_CFLAGS)
 
 libgrldmap_la_LIBADD =	\
 	$(DEPS_DMAP_LIBS)
@@ -36,7 +32,7 @@ extdir			= $(GRL_PLUGINS_DIR)
 dmapxmldir		= $(GRL_PLUGINS_DIR)
 dmapxml_DATA	= $(DMAP_PLUGIN_ID).xml
 
-EXTRA_DIST    += $(dmapxml_DATA)
+EXTRA_DIST      = $(dmapxml_DATA)
 
 MAINTAINERCLEANFILES =	\
 	*.in						\

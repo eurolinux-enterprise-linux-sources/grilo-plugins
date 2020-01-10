@@ -29,8 +29,6 @@
 
 #include "grl-gravatar.h"
 
-#include <glib/gi18n-lib.h>
-
 /* ---------- Logging ---------- */
 
 #define GRL_LOG_DOMAIN_DEFAULT gravatar_log_domain
@@ -38,15 +36,15 @@ GRL_LOG_DOMAIN_STATIC(gravatar_log_domain);
 
 /* -------- Gravatar API -------- */
 
-#define GRAVATAR_URL "https://www.gravatar.com/avatar/%s.jpg"
+#define GRAVATAR_URL "http://www.gravatar.com/avatar/%s.jpg"
 
 /* ------- Pluging Info -------- */
 
 #define PLUGIN_ID   GRAVATAR_PLUGIN_ID
 
 #define SOURCE_ID   PLUGIN_ID
-#define SOURCE_NAME _("Avatar provider from Gravatar")
-#define SOURCE_DESC _("A plugin to get avatars for artist and author fields")
+#define SOURCE_NAME "Avatar provider from Gravatar"
+#define SOURCE_DESC "A plugin to get avatars for artist and author fields"
 
 static GrlGravatarSource *grl_gravatar_source_new (void);
 
@@ -83,28 +81,7 @@ grl_gravatar_source_plugin_init (GrlRegistry *registry,
 
   GRL_DEBUG ("grl_gravatar_source_plugin_init");
 
-  /* Initialize i18n */
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-
-  if (!GRL_METADATA_KEY_ARTIST_AVATAR &&
-      !GRL_METADATA_KEY_AUTHOR_AVATAR) {
-    GRL_WARNING ("Unable to register \"author-avatar\" nor \"artist-avatar\"");
-    return FALSE;
-  }
-
-  GrlGravatarSource *source = grl_gravatar_source_new ();
-  grl_registry_register_source (registry,
-                                plugin,
-                                GRL_SOURCE (source),
-                                NULL);
-  return TRUE;
-}
-
-static void
-grl_gravatar_source_plugin_register_keys (GrlRegistry *registry,
-                                          GrlPlugin   *plugin)
-{
+  /* Register keys */
   GRL_METADATA_KEY_ARTIST_AVATAR =
     register_gravatar_key (registry,
                            "artist-avatar",
@@ -116,6 +93,11 @@ grl_gravatar_source_plugin_register_keys (GrlRegistry *registry,
                            "author-avatar",
                             "AuthorAvatar",
                             "Avatar for the author");
+  if (!GRL_METADATA_KEY_ARTIST_AVATAR &&
+      !GRL_METADATA_KEY_AUTHOR_AVATAR) {
+    GRL_WARNING ("Unable to register \"autor-avatar\" nor \"artist-avatar\"");
+    return FALSE;
+  }
 
   /* Create relationship */
   grl_registry_register_metadata_key_relation (registry,
@@ -125,12 +107,18 @@ grl_gravatar_source_plugin_register_keys (GrlRegistry *registry,
   grl_registry_register_metadata_key_relation (registry,
                                                GRL_METADATA_KEY_AUTHOR,
                                                GRL_METADATA_KEY_AUTHOR_AVATAR);
+
+  GrlGravatarSource *source = grl_gravatar_source_new ();
+  grl_registry_register_source (registry,
+                                plugin,
+                                GRL_SOURCE (source),
+                                NULL);
+  return TRUE;
 }
 
-GRL_PLUGIN_REGISTER_FULL (grl_gravatar_source_plugin_init,
-                          NULL,
-                          grl_gravatar_source_plugin_register_keys,
-                          PLUGIN_ID);
+GRL_PLUGIN_REGISTER (grl_gravatar_source_plugin_init,
+                     NULL,
+                     PLUGIN_ID);
 
 /* ================== Gravatar GObject ================ */
 
@@ -182,6 +170,7 @@ register_gravatar_key (GrlRegistry *registry,
                               G_PARAM_READWRITE);
 
   key = grl_registry_register_metadata_key (registry, spec, NULL);
+  g_param_spec_unref (spec);
 
   /* If key was not registered, could be that it is already registered. If so,
      check if type is the expected one, and reuse it */

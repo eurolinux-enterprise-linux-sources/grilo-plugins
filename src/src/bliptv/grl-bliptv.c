@@ -31,7 +31,6 @@
 
 #include <net/grl-net.h>
 
-#include <glib/gi18n-lib.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
@@ -49,7 +48,7 @@ GRL_LOG_DOMAIN_STATIC(bliptv_log_domain);
 
 #define BLIPTV_BACKEND "http://blip.tv"
 #define BLIPTV_BROWSE  BLIPTV_BACKEND "/posts?skin=rss&page=%u"
-#define BLIPTV_SEARCH  BLIPTV_BACKEND "/posts?search=%s&skin=rss&page=%%u"
+#define BLIPTV_SEARCH  BLIPTV_BROWSE "&search=%s"
 
 /* --- Plugin information --- */
 
@@ -57,7 +56,7 @@ GRL_LOG_DOMAIN_STATIC(bliptv_log_domain);
 
 #define SOURCE_ID   "grl-bliptv"
 #define SOURCE_NAME "Blip.tv"
-#define SOURCE_DESC _("A source for browsing and searching Blip.tv videos")
+#define SOURCE_DESC "A source for browsing and searching Blip.tv videos"
 
 
 G_DEFINE_TYPE (GrlBliptvSource, grl_bliptv_source, GRL_TYPE_SOURCE)
@@ -78,8 +77,6 @@ typedef struct
   guint      operation_id;
   guint      count;
   guint      skip;
-  guint      page;
-  gchar     *url;
 
   GrlSourceResultCb callback;
   gpointer          user_data;
@@ -125,10 +122,6 @@ grl_bliptv_plugin_init (GrlRegistry *registry,
 {
   GRL_LOG_DOMAIN_INIT (bliptv_log_domain, "bliptv");
 
-  /* Initialize i18n */
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-
   bliptv_setup_mapping ();
 
   GrlBliptvSource *source = grl_bliptv_source_new ();
@@ -149,28 +142,12 @@ GRL_PLUGIN_REGISTER (grl_bliptv_plugin_init,
 static GrlBliptvSource *
 grl_bliptv_source_new (void)
 {
-  GIcon *icon;
-  GFile *file;
-  GrlBliptvSource *source;
-  const char *tags[] = {
-    "net:internet",
-    NULL
-  };
-
-  file = g_file_new_for_uri ("resource:///org/gnome/grilo/plugins/bliptv/channel-bliptv.svg");
-  icon = g_file_icon_new (file);
-  g_object_unref (file);
-  source = g_object_new (GRL_TYPE_BLIPTV_SOURCE,
-                         "source-id", SOURCE_ID,
-                         "source-name", SOURCE_NAME,
-                         "source-desc", SOURCE_DESC,
-                         "supported-media", GRL_MEDIA_TYPE_VIDEO,
-                         "source-icon", icon,
-                         "source-tags", tags,
-                         NULL);
-  g_object_unref (icon);
-
-  return source;
+  return g_object_new (GRL_TYPE_BLIPTV_SOURCE,
+                       "source-id", SOURCE_ID,
+                       "source-name", SOURCE_NAME,
+                       "source-desc", SOURCE_DESC,
+                       "supported-media", GRL_MEDIA_TYPE_VIDEO,
+                       NULL);
 }
 
 static void
@@ -179,8 +156,10 @@ grl_bliptv_source_dispose (GObject *object)
   GrlBliptvSource *self;
 
   self= GRL_BLIPTV_SOURCE (object);
-
-  g_clear_object (&self->priv->wc);
+  if (self->priv->wc) {
+    g_object_unref (self->priv->wc);
+    self->priv->wc = NULL;
+  }
 
   G_OBJECT_CLASS (grl_bliptv_source_parent_class)->dispose (object);
 }
@@ -256,10 +235,10 @@ bliptv_setup_mapping (void)
 static void
 bliptv_operation_free (BliptvOperation *op)
 {
-  g_clear_object (&op->cancellable);
-  g_clear_object (&op->source);
-  g_clear_pointer (&op->url, (GDestroyNotify) g_free);
-
+  if (op->cancellable)
+    g_object_unref (op->cancellable);
+  if (op->source)
+    g_object_unref (op->source);
   g_slice_free (BliptvOperation, op);
 }
 
@@ -274,31 +253,30 @@ call_raw_async_cb (GObject *     source_object,
   xmlXPathObjectPtr   obj = NULL;
   gint i, nb_items = 0;
   gchar *content = NULL;
-  gchar *url;
-  gsize length;
+  gint length;
 
   GRL_DEBUG ("Response id=%u", op->operation_id);
 
   if (g_cancellable_is_cancelled (op->cancellable)) {
-    goto finalize_send_last;
+    goto finalize;
   }
 
   if (!grl_net_wc_request_finish (GRL_NET_WC (source_object),
                                   res,
                                   &content,
-                                  &length,
+                                  (gsize *) &length,
                                   NULL)) {
-    goto finalize_send_last;
+    goto finalize;
   }
 
-  doc = xmlParseMemory (content, (gint) length);
+  doc = xmlParseMemory (content, length);
 
   if (!doc)
-    goto finalize_send_last;
+    goto finalize;
 
   xpath = xmlXPathNewContext (doc);
   if (!xpath)
-    goto finalize_send_last;
+    goto finalize;
 
   xmlXPathRegisterNs (xpath,
                       (xmlChar *) "blip",
@@ -314,23 +292,8 @@ call_raw_async_cb (GObject *     source_object,
       xmlXPathFreeObject (obj);
     }
 
-  if (nb_items == 0) {
-    goto finalize_send_last;
-  }
-
-  /* Special case: when there are no results in a search, Blip.tv returns an
-     element telling precisely that, no results found; so we need to report no
-     results too */
-  if (nb_items == 1) {
-    obj = xmlXPathEvalExpression ((xmlChar *) "string(/rss/channel/item[0]/blip:item_id)", xpath);
-    if (!obj || !obj->stringval || obj->stringval[0] == '\0') {
-      g_clear_pointer (&obj, (GDestroyNotify) xmlXPathFreeObject);
-      nb_items = 0;
-      goto finalize_send_last;
-    } else {
-      xmlXPathFreeObject (obj);
-    }
-  }
+  if (nb_items < (op->count + op->skip))
+    op->count = nb_items - op->skip;
 
   for (i = op->skip; i < nb_items; i++)
     {
@@ -411,26 +374,7 @@ call_raw_async_cb (GObject *     source_object,
         break;
     }
 
-  if (op->count > 0) {
-    /* Request next page */
-    op->skip = 0;
-    url = g_strdup_printf (op->url, ++op->page);
-
-    GRL_DEBUG ("Operation %d: requesting page %d",
-               op->operation_id,
-               op->page);
-
-    grl_net_wc_request_async (GRL_BLIPTV_SOURCE (op->source)->priv->wc,
-                              url,
-                              op->cancellable,
-                              call_raw_async_cb,
-                              op);
-    g_free (url);
-
-    goto finalize_free;
-  }
-
- finalize_send_last:
+ finalize:
   /* Signal the last element if it was not already signaled */
   if (nb_items == 0) {
     op->callback (op->source,
@@ -441,9 +385,12 @@ call_raw_async_cb (GObject *     source_object,
                   NULL);
   }
 
- finalize_free:
-  g_clear_pointer (&xpath, (GDestroyNotify) xmlXPathFreeContext);
-  g_clear_pointer (&doc, (GDestroyNotify) xmlFreeDoc);
+  if (xpath)
+    xmlXPathFreeContext (xpath);
+  if (doc)
+    xmlFreeDoc (doc);
+
+  bliptv_operation_free (op);
 }
 
 /* ================== API Implementation ================ */
@@ -485,15 +432,13 @@ grl_bliptv_source_browse (GrlSource *source,
   op->cancellable  = g_cancellable_new ();
   op->count        = count;
   op->skip         = page_offset;
-  op->page         = page_number;
-  op->url          = g_strdup (BLIPTV_BROWSE);
   op->operation_id = bs->operation_id;
   op->callback     = bs->callback;
   op->user_data    = bs->user_data;
 
-  grl_operation_set_data_full (bs->operation_id, op, (GDestroyNotify) bliptv_operation_free);
+  grl_operation_set_data (bs->operation_id, op);
 
-  url = g_strdup_printf (op->url, page_number);
+  url = g_strdup_printf (BLIPTV_BROWSE, page_number + 1);
 
   GRL_DEBUG ("Starting browse request for id=%u", bs->operation_id);
 
@@ -526,16 +471,14 @@ grl_bliptv_source_search (GrlSource *source,
   op->cancellable  = g_cancellable_new ();
   op->count        = count;
   op->skip         = page_offset;
-  op->page         = page_number;
-  op->url          = g_strdup_printf (BLIPTV_SEARCH, ss->text);
   op->operation_id = ss->operation_id;
   op->callback     = ss->callback;
   op->user_data    = ss->user_data;
 
 
-  grl_operation_set_data_full (ss->operation_id, op, (GDestroyNotify) bliptv_operation_free);
+  grl_operation_set_data (ss->operation_id, op);
 
-  url = g_strdup_printf (op->url, page_number);
+  url = g_strdup_printf (BLIPTV_SEARCH, page_number + 1, ss->text);
 
   GRL_DEBUG ("Starting search request for id=%u : '%s'",
              ss->operation_id, ss->text);
@@ -553,12 +496,11 @@ grl_bliptv_source_cancel (GrlSource *source, guint operation_id)
 {
   BliptvOperation *op = grl_operation_get_data (operation_id);
 
-  GRL_DEBUG ("Cancelling id=%u", operation_id);
+  GRL_WARNING ("Cancelling id=%u", operation_id);
 
   if (!op)
     {
       GRL_WARNING ("\tNo such operation id=%u", operation_id);
-      return;
     }
 
   if (op->cancellable) {

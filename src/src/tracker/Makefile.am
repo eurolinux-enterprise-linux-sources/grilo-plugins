@@ -5,14 +5,10 @@
 #
 # Copyright (C) 2011 Igalia S.L. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES		 = libgrltracker.la
 
 libgrltracker_la_CFLAGS =	\
-	$(DEPS_TRACKER_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlTracker\" \
-	-DLOCALEDIR=\"$(localedir)\"
+	$(DEPS_TRACKER_CFLAGS)
 
 libgrltracker_la_LIBADD =	\
 	$(DEPS_TRACKER_LIBS)
@@ -43,7 +39,7 @@ extdir				= $(GRL_PLUGINS_DIR)
 trackerxmldir		= $(GRL_PLUGINS_DIR)
 trackerxml_DATA	= $(TRACKER_PLUGIN_ID).xml
 
-EXTRA_DIST += $(trackerxml_DATA)
+EXTRA_DIST = $(trackerxml_DATA)
 
 MAINTAINERCLEANFILES =	\
 	*.in		\

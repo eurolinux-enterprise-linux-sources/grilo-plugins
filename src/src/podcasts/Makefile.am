@@ -5,14 +5,10 @@
 #
 # Copyright (C) 2010, 2011 Igalia S.L. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES = libgrlpodcasts.la
 
 libgrlpodcasts_la_CFLAGS =	\
-	$(DEPS_PODCASTS_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlPodcasts\" \
-	-DLOCALEDIR=\"$(localedir)\"
+	$(DEPS_PODCASTS_CFLAGS)
 
 libgrlpodcasts_la_LIBADD =	\
 	$(DEPS_PODCASTS_LIBS)
@@ -28,7 +24,7 @@ extdir				= $(GRL_PLUGINS_DIR)
 podcastsxmldir		= $(GRL_PLUGINS_DIR)
 podcastsxml_DATA	= $(PODCASTS_PLUGIN_ID).xml
 
-EXTRA_DIST += $(podcastsxml_DATA)
+EXTRA_DIST = $(podcastsxml_DATA)
 
 MAINTAINERCLEANFILES =	\
 	*.in		\

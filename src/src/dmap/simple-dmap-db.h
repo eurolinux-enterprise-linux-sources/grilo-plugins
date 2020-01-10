@@ -22,7 +22,6 @@
 #define __SIMPLE_DMAP_DB
 
 #include <libdmapsharing/dmap.h>
-#include <grilo.h>
 
 G_BEGIN_DECLS
 
@@ -66,22 +65,13 @@ typedef struct {
   GObjectClass parent;
 } SimpleDMAPDbClass;
 
-void simple_dmap_db_browse (SimpleDMAPDb *db,
-                            GrlMedia *container,
-                            GrlSource *source,
-                            guint op_id,
-                            guint skip,
-                            guint count,
-                            GrlSourceResultCb func,
-                            gpointer user_data);
-
-void simple_dmap_db_search (SimpleDMAPDb *db,
-                            GrlSource *source,
-                            guint op_id,
-                            GHRFunc predicate,
-                            gpointer pred_user_data,
-                            GrlSourceResultCb func,
-                            gpointer user_data);
+void simple_dmap_db_filtered_foreach (SimpleDMAPDb *db,
+                                      guint skip,
+                                      guint count,
+                                      GHRFunc predicate,
+                                      gpointer pred_user_data,
+                                      GHFunc func,
+                                      gpointer user_data);
 
 SimpleDMAPDb *simple_dmap_db_new (void);
 

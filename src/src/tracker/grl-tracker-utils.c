@@ -28,7 +28,6 @@
 #endif
 
 #include "grl-tracker-utils.h"
-#include <glib/gi18n-lib.h>
 
 /**/
 
@@ -36,7 +35,6 @@ static GHashTable *grl_to_sparql_mapping = NULL;
 static GHashTable *sparql_to_grl_mapping = NULL;
 
 GrlKeyID grl_metadata_key_tracker_urn;
-GrlKeyID grl_metadata_key_gibest_hash;
 
 
 /**/
@@ -89,30 +87,6 @@ set_date (TrackerSparqlCursor *cursor,
       g_date_time_unref (date);
     }
   }
-}
-
-static void
-set_title_from_filename (TrackerSparqlCursor *cursor,
-                         gint                 column,
-                         GrlMedia            *media,
-                         GrlKeyID             key)
-{
-  const gchar *str = tracker_sparql_cursor_get_string (cursor, column, NULL);
-  if (key == GRL_METADATA_KEY_TITLE) {
-    grl_data_set_boolean (GRL_DATA (media), GRL_METADATA_KEY_TITLE_FROM_FILENAME, TRUE);
-    grl_media_set_title (media, str);
-  }
-}
-
-static void
-set_title (TrackerSparqlCursor *cursor,
-           gint                 column,
-           GrlMedia            *media,
-           GrlKeyID             key)
-{
-  const gchar *str = tracker_sparql_cursor_get_string (cursor, column, NULL);
-  grl_data_set_boolean (GRL_DATA (media), GRL_METADATA_KEY_TITLE_FROM_FILENAME, FALSE);
-  grl_media_set_title (media, str);
 }
 
 static tracker_grl_sparql_t *
@@ -174,11 +148,21 @@ grl_tracker_setup_key_mappings (void)
 {
   GrlRegistry *registry = grl_registry_get_default ();
 
+  /* Check if "tracker-urn" is registered; if not, then register it */
   grl_metadata_key_tracker_urn =
     grl_registry_lookup_metadata_key (registry, "tracker-urn");
 
-  grl_metadata_key_gibest_hash =
-    grl_registry_lookup_metadata_key (registry, "gibest-hash");
+  if (grl_metadata_key_tracker_urn == GRL_METADATA_KEY_INVALID) {
+    grl_metadata_key_tracker_urn =
+      grl_registry_register_metadata_key (grl_registry_get_default (),
+                                          g_param_spec_string ("tracker-urn",
+                                                               "Tracker URN",
+                                                               "Universal resource number in Tracker's store",
+                                                               NULL,
+                                                               G_PARAM_STATIC_STRINGS |
+                                                               G_PARAM_READWRITE),
+                                          NULL);
+  }
 
   grl_to_sparql_mapping = g_hash_table_new (g_direct_hash, g_direct_equal);
   sparql_to_grl_mapping = g_hash_table_new (g_str_hash, g_str_equal);
@@ -212,16 +196,6 @@ grl_tracker_setup_key_mappings (void)
                       "nfo:entryCounter",
                       "nfo:entryCounter(?urn)",
                       "directory");
-
-  insert_key_mapping (GRL_METADATA_KEY_SIZE,
-                      NULL,
-                      "nfo:fileSize(?urn)",
-                      "file");
-
-  insert_key_mapping (grl_metadata_key_gibest_hash,
-                      NULL,
-                      "(select nfo:hashValue(?h) { ?urn nfo:hasHash ?h . ?h nfo:hashAlgorithm \"gibest\" })",
-                      "video");
 
   insert_key_mapping_with_setter (GRL_METADATA_KEY_MODIFICATION_DATE,
                                   "nfo:fileLastModified",
@@ -263,17 +237,15 @@ grl_tracker_setup_key_mappings (void)
                       "nie:url(?urn)",
                       "file");
 
-  insert_key_mapping_with_setter (GRL_METADATA_KEY_TITLE,
-                                  "nie:title",
-                                  "nie:title(?urn)",
-                                  "audio",
-                                  set_title);
+  insert_key_mapping (GRL_METADATA_KEY_TITLE,
+                      "nie:title",
+                      "nie:title(?urn)",
+                      "audio");
 
-  insert_key_mapping_with_setter (GRL_METADATA_KEY_TITLE,
-                                  "nfo:fileName",
-                                  "nfo:fileName(?urn)",
-                                  "file",
-                                  set_title_from_filename);
+  insert_key_mapping (GRL_METADATA_KEY_TITLE,
+                      "nfo:fileName",
+                      "nfo:fileName(?urn)",
+                      "file");
 
   insert_key_mapping (GRL_METADATA_KEY_URL,
                       "nie:url",
@@ -571,7 +543,6 @@ grl_tracker_build_grilo_media (const gchar *rdf_type)
   GrlMedia *media = NULL;
   gchar **rdf_single_type;
   int i;
-  GHashTable *ht;
 
   if (!rdf_type) {
     return NULL;
@@ -580,27 +551,26 @@ grl_tracker_build_grilo_media (const gchar *rdf_type)
   /* As rdf_type can be formed by several types, split them */
   rdf_single_type = g_strsplit (rdf_type, ",", -1);
   i = g_strv_length (rdf_single_type) - 1;
-  ht = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
-  for (; i>= 0; i--)
-    g_hash_table_insert (ht, g_path_get_basename (rdf_single_type[i]), GINT_TO_POINTER(TRUE));
 
-  if (g_hash_table_lookup (ht, RDF_TYPE_MUSIC)) {
-    media = grl_media_audio_new ();
-  } else if (g_hash_table_lookup (ht, RDF_TYPE_VIDEO)) {
-    media = grl_media_video_new ();
-  } else if (g_hash_table_lookup (ht, RDF_TYPE_IMAGE)) {
-    media = grl_media_image_new ();
-  } else if (g_hash_table_lookup (ht, RDF_TYPE_ARTIST)) {
-    media = grl_media_box_new ();
-  } else if (g_hash_table_lookup (ht, RDF_TYPE_ALBUM)) {
-    media = grl_media_box_new ();
-  } else if (g_hash_table_lookup (ht, RDF_TYPE_BOX)) {
-    media = grl_media_box_new ();
-  } else if (g_hash_table_lookup (ht, RDF_TYPE_FOLDER)) {
-    media = grl_media_box_new ();
+  while (!media && i >= 0) {
+    if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_MUSIC)) {
+      media = grl_media_audio_new ();
+    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_VIDEO)) {
+      media = grl_media_video_new ();
+    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_IMAGE)) {
+      media = grl_media_image_new ();
+    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_ARTIST)) {
+      media = grl_media_box_new ();
+    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_ALBUM)) {
+      media = grl_media_box_new ();
+    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_BOX)) {
+      media = grl_media_box_new ();
+    } else if (g_str_has_suffix (rdf_single_type[i], RDF_TYPE_FOLDER)) {
+      media = grl_media_box_new ();
+    }
+    i--;
   }
 
-  g_hash_table_destroy (ht);
   g_strfreev (rdf_single_type);
 
   if (!media)
@@ -632,7 +602,7 @@ get_tracker_volume_name (const gchar *uri,
       if (g_file_equal (m_file, file)) {
         gchar *m_name = g_mount_get_name (G_MOUNT (mount->data));
         g_object_unref (G_OBJECT (m_file));
-        source_name = g_strdup_printf (_("Removable - %s"), m_name);
+        source_name = g_strdup_printf ("Removable - %s", m_name);
         g_free (m_name);
         break;
       }
@@ -644,7 +614,7 @@ get_tracker_volume_name (const gchar *uri,
     g_object_unref (G_OBJECT (file));
     g_object_unref (G_OBJECT (volume_monitor));
   } else {
-    source_name = g_strdup (_("Local files"));
+    source_name = g_strdup ("Local files");
   }
 
   return source_name;

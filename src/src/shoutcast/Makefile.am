@@ -5,14 +5,10 @@
 #
 # Copyright (C) 2010, 2011 Igalia S.L. All rights reserved.
 
-include $(top_srcdir)/gtester.mk
-
 ext_LTLIBRARIES		 = libgrlshoutcast.la
 
 libgrlshoutcast_la_CFLAGS =	\
-	$(DEPS_SHOUTCAST_CFLAGS)	\
-	-DG_LOG_DOMAIN=\"GrlShoutcast\" \
-	-DLOCALEDIR=\"$(localedir)\"
+	$(DEPS_SHOUTCAST_CFLAGS)
 
 libgrlshoutcast_la_LIBADD =	\
 	$(DEPS_SHOUTCAST_LIBS)
@@ -28,7 +24,7 @@ extdir				= $(GRL_PLUGINS_DIR)
 shoutcastxmldir	= $(GRL_PLUGINS_DIR)
 shoutcastxml_DATA	= $(SHOUTCAST_PLUGIN_ID).xml
 
-EXTRA_DIST += $(shoutcastxml_DATA)
+EXTRA_DIST = $(shoutcastxml_DATA)
 
 MAINTAINERCLEANFILES =	\
 	*.in		\
